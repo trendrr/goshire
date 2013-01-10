@@ -5,12 +5,14 @@ import (
     "encoding/json"
     "log"
     "fmt"
+    "sync"
 )
 
 type HttpConnection struct {
     Writer http.ResponseWriter
     request *http.Request
     ServerConfig *ServerConfig
+    headerWritten sync.Once
 }
 
 func (conn *HttpConnection) Write(response *Response) (int, error) {
@@ -20,12 +22,17 @@ func (conn *HttpConnection) Write(response *Response) (int, error) {
         //TODO: uhh, do something..
         log.Print(err)
     }
-
-    conn.Writer.Header().Set("Content-Type", "application/json")
-    // conn.Writer.Header().Set("Content-Length", strconv.Itoa(len(json)))
-    
-    conn.Writer.WriteHeader(response.StatusCode())
+    conn.headerWritten.Do(func() {
+        conn.Writer.Header().Set("Content-Type", "application/json")
+        conn.Writer.WriteHeader(response.StatusCode())
+    })
     conn.Writer.Write(json)
+    conn.Writer.Write([]byte("\n"))
+    v,ok := conn.Writer.(http.Flusher)
+    if ok{
+        v.Flush()    
+    }
+
     return 200, err
 }
 
@@ -50,7 +57,7 @@ func (this *httpHandler) ServeHTTP(writer http.ResponseWriter, req *http.Request
     request := ToStrestRequest(req)
 
     //TODO: filters here..
-    conn := HttpConnection{writer, req, this.serverConfig}
+    conn := HttpConnection{Writer:writer, request:req, ServerConfig:this.serverConfig}
     
     controller.HandleRequest(request, &conn)
 } 
