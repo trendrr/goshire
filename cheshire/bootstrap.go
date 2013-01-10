@@ -7,6 +7,7 @@ import (
     "strings"
     "github.com/trendrr/cheshire-golang/strest"
     "log"
+    "sync"
     // "os"
 )
 
@@ -65,19 +66,35 @@ func (this *Bootstrap) InitWebSockets() {
 
 }
 
+func (this *Bootstrap) InitControllers() {
+    for _, contr := range registerQueue {
+        this.Conf.Register(contr)
+    }
+}
+
+//
+// a queue of controllers so we can register controllers 
+// before the bootstrap is initialized
+var registerQueue []strest.Controller
+var registerOnce sync.Once
+
+
 // Registers a controller funtion for api calls 
-func (this *Bootstrap) RegisterApi(route string, methods []string, handler func(*strest.Request,strest.Connection)) {
-    this.Conf.Register(strest.NewController(route, methods, handler))
+func RegisterApi(route string, methods []string, handler func(*strest.Request,strest.Connection)) {
+    Register(strest.NewController(route, methods, handler))
 }
 
 // Registers a controller function for html pages  
-func (this *Bootstrap) RegisterHtml(route string, methods []string, handler func(*strest.Request, *HtmlConnection)) {
-    this.Conf.Register(NewHtmlController(route, methods, handler))
+func RegisterHtml(route string, methods []string, handler func(*strest.Request, *HtmlConnection)) {
+    Register(NewHtmlController(route, methods, handler))
 }
 
 // Registers a new controller
-func (this *Bootstrap) Register(controller strest.Controller) {
-    this.Conf.Register(controller)
+func Register(controller strest.Controller) {
+    registerOnce.Do(func() {
+        registerQueue = []strest.Controller{}
+    })
+    _ = append(registerQueue, controller)
 }
 
 func NewBootstrapFile(configPath string) *Bootstrap {
