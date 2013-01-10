@@ -18,9 +18,6 @@ It's inspired by the cheshire java framework https://github.com/dustismo/cheshir
   * Pluggable authentication
   * Memcached caching
 
-###Wishlist:
-* Sockjs Support
-* Rate limiting
 
 ## Install
 
@@ -28,6 +25,7 @@ It's inspired by the cheshire java framework https://github.com/dustismo/cheshir
 go get github.com/kylelemons/go-gypsy/yaml
 go get github.com/hoisie/mustache
 go get code.google.com/p/go.net/websocket
+go get github.com/trendrr/cheshire-golang
 ```
 
 ##Quickstart
@@ -36,7 +34,7 @@ For a quick start boilerplate project, check out Wildling. http://github.com/mde
 
 ##Docs
 
-Here are the go docs. http://go.pkgdoc.org/github.com/mdennebaum/cheshire
+Here are the go docs. http://godoc.org/github.com/trendrr/cheshire-golang
 
 ##Credits
 
