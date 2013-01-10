@@ -78,13 +78,13 @@ func (this *Bootstrap) InitControllers() {
 var registerQueue []strest.Controller
 
 // Registers a controller funtion for api calls 
-func RegisterApi(route string, methods []string, handler func(*strest.Request,strest.Connection)) {
-    Register(strest.NewController(route, methods, handler))
+func RegisterApi(route string, method string, handler func(*strest.Request,strest.Connection)) {
+    Register(strest.NewController(route, []string{method}, handler))
 }
 
 // Registers a controller function for html pages  
-func RegisterHtml(route string, methods []string, handler func(*strest.Request, *HtmlConnection)) {
-    Register(NewHtmlController(route, methods, handler))
+func RegisterHtml(route string, method string, handler func(*strest.Request, *HtmlConnection)) {
+    Register(NewHtmlController(route, []string{method}, handler))
 }
 
 // Registers a new controller
