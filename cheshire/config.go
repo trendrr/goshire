@@ -2,7 +2,7 @@ package cheshire
 
 import (
 	"github.com/kylelemons/go-gypsy/yaml"
-	"strest"
+    "github.com/trendrr/cheshire-golang/strest"
 	"log"
 	"fmt"
 )

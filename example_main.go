@@ -2,14 +2,13 @@ package main
 
 import (
     "log"
-    "cheshire"
-    "strest"
+    "github.com/trendrr/cheshire-golang/strest"
 )
 
 func main() {
 
-    bootstrap := cheshire.NewBootstrapFile("config.yaml")
-
+    bootstrap := cheshire.NewBootstrapFile("example_config.yaml")
+    log.Println("HERE:1")
     //a ping controller api controller.  
     pinger := func(request *strest.Request,conn strest.Connection) {
         response := strest.NewResponse(request)
@@ -18,7 +17,8 @@ func main() {
     }
     //now register the api call
     bootstrap.RegisterApi("/ping", []string{"GET"}, pinger)
-
+    log.Println("HERE:1")
+    
     //an example html page
     four04 := func(request *strest.Request, conn *cheshire.HtmlConnection) {
         context := make(map[string]interface{})

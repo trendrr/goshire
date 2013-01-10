@@ -5,7 +5,7 @@ import (
     "reflect"
     "runtime"
     "strings"
-    "strest"
+    "github.com/trendrr/cheshire-golang/strest"
     "log"
     // "os"
 )

@@ -1,7 +1,7 @@
 package cheshire
 
 import(
-    "strest"
+    "github.com/trendrr/cheshire-golang/strest"
     "log"
     "fmt"
     "github.com/hoisie/mustache"
