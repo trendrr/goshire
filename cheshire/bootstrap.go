@@ -7,8 +7,6 @@ import (
     "strings"
     "github.com/trendrr/cheshire-golang/strest"
     "log"
-    "sync"
-    // "os"
 )
 
 type Bootstrap struct {
@@ -67,7 +65,9 @@ func (this *Bootstrap) InitWebSockets() {
 }
 
 func (this *Bootstrap) InitControllers() {
+    log.Println("INIT CONTROLLERS", registerQueue)
     for _, contr := range registerQueue {
+        log.Println("Registering controller: ", contr)
         this.Conf.Register(contr)
     }
 }
@@ -76,8 +76,6 @@ func (this *Bootstrap) InitControllers() {
 // a queue of controllers so we can register controllers 
 // before the bootstrap is initialized
 var registerQueue []strest.Controller
-var registerOnce sync.Once
-
 
 // Registers a controller funtion for api calls 
 func RegisterApi(route string, methods []string, handler func(*strest.Request,strest.Connection)) {
@@ -91,10 +89,7 @@ func RegisterHtml(route string, methods []string, handler func(*strest.Request, 
 
 // Registers a new controller
 func Register(controller strest.Controller) {
-    registerOnce.Do(func() {
-        registerQueue = []strest.Controller{}
-    })
-    _ = append(registerQueue, controller)
+    registerQueue = append(registerQueue, controller)    
 }
 
 func NewBootstrapFile(configPath string) *Bootstrap {
