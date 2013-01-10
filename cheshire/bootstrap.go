@@ -70,9 +70,14 @@ func (this *Bootstrap) RegisterApi(route string, methods []string, handler func(
     this.Conf.Register(strest.NewController(route, methods, handler))
 }
 
-// Registers a controller function for 
+// Registers a controller function for html pages  
 func (this *Bootstrap) RegisterHtml(route string, methods []string, handler func(*strest.Request, *HtmlConnection)) {
     this.Conf.Register(NewHtmlController(route, methods, handler))
+}
+
+// Registers a new controller
+func (this *Bootstrap) Register(controller strest.Controller) {
+    this.Conf.Register(controller)
 }
 
 func NewBootstrapFile(configPath string) *Bootstrap {
