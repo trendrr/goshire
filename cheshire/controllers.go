@@ -102,11 +102,10 @@ func (this *StaticFileController) Config() (*strest.Config) {
 }
 
 func (this StaticFileController) HandleRequest(*strest.Request, strest.Connection) {
-    //Do nothing.
+    //Empty method, this is never called because we have the HttpHijack method in place
 }
 
 func (this StaticFileController) HttpHijack(writer http.ResponseWriter, req *http.Request) {
-    log.Println(req)
     this.Handler.ServeHTTP(writer, req)
 }
 

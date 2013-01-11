@@ -10,7 +10,6 @@ func ToInt64(value interface{}) (i int64, err error) {
     switch v := value.(type) {
     case string:
         i, err := strconv.ParseInt(v, 0, 64)
-        log.Println("from string ",i, err)
         return i, err
     case int64:
         return v, nil
@@ -47,17 +46,14 @@ func ToString(value interface{}) (string) {
 func ToDynMap(value interface{}) (*DynMap, bool) {
     switch v := value.(type) {
     case map[string]interface{}:
-        log.Println("map")
         dynmap := NewDynMap()
         dynmap.Map = v
         return dynmap, true
     case *map[string]interface{}:
-        log.Println("map pointer")
         dynmap := NewDynMap()
         dynmap.Map = *v
         return dynmap, true
     case DynMap:
-        log.Println("dynmap")
         return &v, true
     case *DynMap:
         return v, true

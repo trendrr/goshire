@@ -55,7 +55,6 @@ func (this *httpHandler) ServeHTTP(writer http.ResponseWriter, req *http.Request
     h, hijack := controller.(HttpHijacker)
     if hijack {
         h.HttpHijack(writer, req)
-        log.Print("HIJACKED!")
         return;
     }
 
