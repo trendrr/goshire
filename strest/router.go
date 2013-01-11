@@ -128,36 +128,18 @@ func (mux *Router) Match(path string) (h Controller) {
 // Handle registers the handler for the given pattern.
 // If a handler already exists for pattern, Handle panics.
 func (mux *Router) Register(handler Controller) {
-        mux.mu.Lock()
-        defer mux.mu.Unlock()
-        var pattern = handler.Config().Route
-        if pattern == "" {
-                panic("cheshire: invalid pattern " + pattern)
-        }
-        if handler == nil {
-                panic("cheshire: nil handler")
-        }
-        if mux.m[pattern].explicit {
-                panic("cheshire: multiple registrations for " + pattern)
-        }
+    mux.mu.Lock()
+    defer mux.mu.Unlock()
+    var pattern = handler.Config().Route
+    if pattern == "" {
+            panic("cheshire: invalid pattern " + pattern)
+    }
+    if handler == nil {
+            panic("cheshire: nil handler")
+    }
+    if mux.m[pattern].explicit {
+            panic("cheshire: multiple registrations for " + pattern)
+    }
 
-        mux.m[pattern] = muxEntry{explicit: true, h: handler, pattern: pattern}
-
-
-        // Helpful behavior:
-        // If pattern is /tree/, insert an implicit permanent redirect for /tree.
-        // It can be overridden by an explicit registration.
-        // n := len(pattern)
-        // if n > 0 && pattern[n-1] == '/' && !mux.m[pattern[0:n-1]].explicit {
-        //         // If pattern contains a host name, strip it and use remaining
-        //         // path for redirect.
-        //         path := pattern
-        //         if pattern[0] != '/' {
-        //                 // In pattern, at least the last character is a '/', so
-        //                 // strings.Index can't be -1.
-        //                 path = pattern[strings.Index(pattern, "/"):]
-        //         }
-        //         //MOVED.  dont think we need this..
-        //         // mux.m[pattern[0:n-1]] = muxEntry{h: RedirectHandler(path, StatusMovedPermanently), pattern: pattern}
-        // }
+    mux.m[pattern] = muxEntry{explicit: true, h: handler, pattern: pattern}
 }

@@ -1,7 +1,7 @@
 package strest
 
 import (
-    // "log"
+    "log"
 )
 
 // what Strest protocol version we are using.
@@ -97,6 +97,8 @@ func NewServerConfig() *ServerConfig {
 // Registers a controller with the RouteMatcher.  
 // shortcut to conf.Router.Register(controller)
 func (this *ServerConfig) Register(controller Controller) {
+    log.Println("Registering: ", controller.Config().Route, " ", controller)
+
     this.Router.Register(controller)
 }
 
