@@ -41,14 +41,21 @@ type httpHandler struct {
     
 }
 
+// Implement this interface for a controller to skip the normal cheshire life cycle
+// This should be only used in special cases (static file serving, websockets, ect)
+// controllers that implement this interface will skip the HandleRequest function alltogether
+type HttpHijacker interface {
+    HttpHijack(writer http.ResponseWriter, req *http.Request)
+}
+
 func (this *httpHandler) ServeHTTP(writer http.ResponseWriter, req *http.Request) {
     controller := this.serverConfig.Router.Match(req.URL.Path)
     
-    //check if controller is the special websocket controller.
-    wc, isWebsocket := controller.(WebsocketController)
-    if isWebsocket {
-        wc.Handler.ServeHTTP(writer, req)
-        log.Print("WEBSOCKET!")
+    //check if controller is the special HttpHijacker.
+    h, hijack := controller.(HttpHijacker)
+    if hijack {
+        h.HttpHijack(writer, req)
+        log.Print("HIJACKED!")
         return;
     }
 
@@ -95,4 +102,3 @@ func HttpListen(port int, serverConfig *ServerConfig) error {
     http.ListenAndServe(fmt.Sprintf(":%d", port), handler)
     return nil
 }
-

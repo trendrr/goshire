@@ -6,6 +6,7 @@ import (
     "io"
     "bufio"
     "encoding/json"
+    "net/http"
 )
 
 type WebsocketConnection struct {
@@ -44,6 +45,11 @@ func NewWebsocketController(route string, config *ServerConfig) WebsocketControl
     wc.serverConfig = config
     wc.Handler = websocket.Handler(func(ws *websocket.Conn) { wc.HandleWCConnection(ws) }) //use anon function because a method is impossible
     return *wc
+}
+
+// implements the HttpHijacker interface so we can handle the request directly.
+func (this WebsocketController) HttpHijack(writer http.ResponseWriter, req *http.Request) {
+    this.Handler.ServeHTTP(writer, req)
 }
 
 func (wc WebsocketController) HandleWCConnection(ws *websocket.Conn) {
