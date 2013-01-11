@@ -99,6 +99,5 @@ func HttpListen(port int, serverConfig *ServerConfig) error {
     handler := &httpHandler{serverConfig}
 
     log.Println("HTTP Listener on port: ", port)
-    http.ListenAndServe(fmt.Sprintf(":%d", port), handler)
-    return nil
+    return http.ListenAndServe(fmt.Sprintf(":%d", port), handler)
 }

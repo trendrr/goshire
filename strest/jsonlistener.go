@@ -32,8 +32,10 @@ func JsonListen(port int, config *ServerConfig) error {
     ln, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
     if err != nil {
         // handle error
+        log.Println(err)
         return err
     }
+    log.Println("Json Listener on port: ", port)
     for {
         conn, err := ln.Accept()
         if err != nil {

@@ -44,9 +44,18 @@ func (this *Bootstrap) InitProcs() {
 //this needs to be setup correctly to key off of the config yaml
 func (this *Bootstrap) InitStaticFiles() {
     if this.Conf.Exists("http.static_files.route") {
-        route, _ := this.Conf.GetString("http.static_files.route")
-        path, _ := this.Conf.GetString("http.static_files.path")
-        this.Conf.Register(NewStaticFileController(route, path))
+        route, ok := this.Conf.GetString("http.static_files.route")
+        if !ok {
+            log.Println("Error initing static files: http.static_files.route")
+            return
+        }
+
+        path, ok := this.Conf.GetString("http.static_files.directory")
+        if !ok {
+            log.Println("Error initing static files: http.static_files.directory")
+            return
+        }
+        this.Conf.Register(NewStaticFileController(route, path))    
     }
 }
 
