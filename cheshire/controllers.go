@@ -5,6 +5,7 @@ import(
     "log"
     "fmt"
     "github.com/hoisie/mustache"
+    "net/http"
 )
 
 type HtmlConnection struct{
@@ -80,3 +81,32 @@ func (this *HtmlController) HandleRequest(request *strest.Request, conn strest.C
 
     handler(request, htmlconn)
 }
+
+
+type StaticFileController struct {
+    Route string
+    Path string
+    Conf *strest.Config
+    Handler http.Handler
+}
+
+// initial the handler via http.StripPrefix("/tmpfiles/", http.FileServer(http.Dir("/tmp")))
+func NewStaticFileController(route string, path string) *StaticFileController {
+    handler := http.StripPrefix(route, http.FileServer(http.Dir(path)))
+    def := &StaticFileController{Handler : handler, Path : path, Route : route, Conf : strest.NewConfig(route)}
+    return def
+}
+
+func (this *StaticFileController) Config() (*strest.Config) {
+    return this.Conf
+}
+
+func (this StaticFileController) HandleRequest(*strest.Request, strest.Connection) {
+    //Do nothing.
+}
+
+func (this StaticFileController) HttpHijack(writer http.ResponseWriter, req *http.Request) {
+    log.Println(req)
+    this.Handler.ServeHTTP(writer, req)
+}
+
