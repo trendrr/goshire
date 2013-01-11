@@ -4,6 +4,7 @@ import (
 	"log"
 	"path"
 	"sync"
+    "strings"
 )
 
 // This is a default implementation of a cheshire Router.  
@@ -24,7 +25,10 @@ import (
 // equivalent .- and ..-free URL.
 type Router struct {
 	mu              sync.RWMutex
-	m               map[string]muxEntry
+	gets            map[string]muxEntry
+    posts           map[string]muxEntry
+    deletes         map[string]muxEntry
+    puts            map[string]muxEntry
 	NotFoundHandler Controller
 }
 
@@ -49,7 +53,10 @@ func (h *DefaultNotFoundHandler) HandleRequest(req *Request, conn Connection) {
 
 // NewServeMux allocates and returns a new CheshireMux.
 func NewDefaultRouter() *Router {
-	router := &Router{m: make(map[string]muxEntry)}
+	router := &Router{gets: make(map[string]muxEntry),
+        posts: make(map[string]muxEntry),
+        deletes: make(map[string]muxEntry),
+        puts: make(map[string]muxEntry) }
 	router.NotFoundHandler = new(DefaultNotFoundHandler)
 	return router
 }
@@ -86,10 +93,15 @@ func cleanPath(p string) string {
 
 // Find a handler on a handler map given a path string
 // Most-specific (longest) pattern wins
-func (mux *Router) match(path string) Controller {
+func (this *Router) match(path string, method string) Controller {
 	var h Controller
 	var n = 0
-	for k, v := range mux.m {
+    m, ok := this.getMethodMap(method)
+    if !ok {
+        return nil
+    }
+
+	for k, v := range m {
 		if !pathMatch(k, path) {
 			continue
 		}
@@ -102,16 +114,13 @@ func (mux *Router) match(path string) Controller {
 }
 
 // Match returns the registered Controller that matches the
-// request or, 
-//
-// For now if no path matches the request, then nil is returned.
-// in the future we might return a 404 controller 
-func (mux *Router) Match(path string) (h Controller) {
+// request or, if no match the registered not found handler is returned
+func (mux *Router) Match(path string, method string) (h Controller) {
 	mux.mu.RLock()
 	defer mux.mu.RUnlock()
-	if h == nil {
-		h = mux.match(path)
-	}
+	
+    h = mux.match(path, method)
+	
 	if h == nil {
 		log.Print("Not Found.  TODO: do something!")
 		h = mux.NotFoundHandler
@@ -119,31 +128,49 @@ func (mux *Router) Match(path string) (h Controller) {
 	return
 }
 
-func (this *Router) GetController(route string) (Controller, bool) {
-	this.mu.RLock()
-	defer this.mu.RUnlock()
-	elem, ok := this.m[route]
-	if !ok {
-		return nil, ok
-	}
-	return elem.h, true
-}
 
 // Handle registers the handler for the given pattern.
 // If a handler already exists for pattern, Handle panics.
-func (mux *Router) Register(handler Controller) {
-	mux.mu.Lock()
-	defer mux.mu.Unlock()
-	var pattern = handler.Config().Route
-	if pattern == "" {
-		panic("cheshire: invalid pattern " + pattern)
-	}
-	if handler == nil {
-		panic("cheshire: nil handler")
-	}
-	if mux.m[pattern].explicit {
-		panic("cheshire: multiple registrations for " + pattern)
-	}
-
-	mux.m[pattern] = muxEntry{explicit: true, h: handler, pattern: pattern}
+func (this *Router) Register(methods []string, handler Controller) {
+	this.mu.Lock()
+	defer this.mu.Unlock()
+    for _,m := range(methods) {
+        this.reg(m, handler)
+    }
 }
+
+func (this *Router) getMethodMap(method string) (map[string]muxEntry, bool) {
+    m := strings.ToUpper(method)
+    switch m {
+    case "GET" :
+        return this.gets, true
+    case "POST" :
+        return this.posts, true
+    case "PUT":
+        return this.puts, true
+    case "DELETE":
+        return this.deletes, true
+    }
+    return nil, false
+}
+
+func (this *Router) reg(method string, handler Controller) {
+    var pattern = handler.Config().Route
+    m, ok := this.getMethodMap(method)
+    if !ok {
+        panic("cheshire: " + method + " is not a valid method!")
+    }
+
+    if pattern == "" {
+        panic("cheshire: invalid pattern " + pattern)
+    }
+    if handler == nil {
+        panic("cheshire: nil handler")
+    }
+    if m[pattern].explicit {
+        panic("cheshire: multiple registrations for " + pattern)
+    }
+
+    m[pattern] = muxEntry{explicit: true, h: handler, pattern: pattern}
+}
+

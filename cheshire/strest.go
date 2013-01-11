@@ -78,9 +78,11 @@ type Connection interface {
 	Write(*Response) (int, error)
 }
 
+
 type RouteMatcher interface {
-	Match(string) Controller
-	Register(Controller)
+    // A controller matches the given path and method
+	Match(string, string) Controller
+	Register([]string, Controller)
 }
 type ServerConfig struct {
 	*DynMap
@@ -94,10 +96,9 @@ func NewServerConfig() *ServerConfig {
 
 // Registers a controller with the RouteMatcher.  
 // shortcut to conf.Router.Register(controller)
-func (this *ServerConfig) Register(controller Controller) {
-	log.Println("Registering: ", controller.Config().Route, " ", controller)
-
-	this.Router.Register(controller)
+func (this *ServerConfig) Register(methods []string, controller Controller) {
+	log.Println("Registering: ", methods, " ", controller.Config().Route, " ", controller)
+	this.Router.Register(methods, controller)
 }
 
 // Configuration for a specific controller.
