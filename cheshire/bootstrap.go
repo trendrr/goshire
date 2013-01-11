@@ -71,9 +71,7 @@ func (this *Bootstrap) InitWebSockets() {
 }
 
 func (this *Bootstrap) InitControllers() {
-    log.Println("INIT CONTROLLERS", registerQueue)
     for _, contr := range registerQueue {
-        log.Println("Registering controller: ", contr)
         this.Conf.Register(contr)
     }
 }
@@ -130,8 +128,7 @@ func NewExtendedBootstrap(configPath string,extentions []func(conf *strest.Serve
 //this method does not return until all listeners exit (i.e. never).
 func (this *Bootstrap) Start() {
     this.RunInitMethods(this)
-    log.Println("**********")
-    log.Println(this.Conf.Map)
+    log.Println("********** Starting Cheshire **************")
     //now start listening.
     if this.Conf.Exists("http.port") {
         port, ok := this.Conf.GetInt("http.port")

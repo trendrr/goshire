@@ -101,25 +101,25 @@ func (this *ServerConfig) Register(controller Controller) {
 }
 
 // Configuration for a specific controller.
-type Config struct {
+type ControllerConfig struct {
     Route string
 }
 
-func NewConfig(route string) *Config {
-    return &Config{Route : route}
+func NewControllerConfig(route string) *ControllerConfig {
+    return &ControllerConfig{Route : route}
 }
 
 // a Controller object
 type Controller interface {
-    Config() (*Config)
+    Config() (*ControllerConfig)
     HandleRequest(*Request, Connection)
 }
 
 type DefaultController struct {
     Handlers map[string] func(*Request, Connection)
-    Conf *Config
+    Conf *ControllerConfig
 }
-func (this *DefaultController) Config() (*Config) {
+func (this *DefaultController) Config() (*ControllerConfig) {
     return this.Conf
 }
 func (this *DefaultController) HandleRequest(request *Request, conn Connection) {
@@ -140,7 +140,7 @@ func NewController(route string, methods []string, handler func(*Request,Connect
     // def := new(DefaultController)
     // def.Conf = NewConfig(route)
 
-    def := &DefaultController{Handlers : make(map[string] func(*Request, Connection)), Conf : NewConfig(route)}
+    def := &DefaultController{Handlers : make(map[string] func(*Request, Connection)), Conf : NewControllerConfig(route)}
     for _,m := range methods {
         def.Handlers[m] = handler
     }

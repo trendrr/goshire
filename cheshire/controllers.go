@@ -42,18 +42,18 @@ func (this *HtmlConnection) WriteContent(value interface{}) {
 
 type HtmlController struct {
     Handlers map[string] func(*strest.Request, *HtmlConnection)
-    Conf *strest.Config
+    Conf *strest.ControllerConfig
 }
 
 func NewHtmlController(route string, methods []string, handler func(*strest.Request, *HtmlConnection)) *HtmlController {
-    def := &HtmlController{Handlers : make(map[string] func(*strest.Request, *HtmlConnection)), Conf : strest.NewConfig(route)}
+    def := &HtmlController{Handlers : make(map[string] func(*strest.Request, *HtmlConnection)), Conf : strest.NewControllerConfig(route)}
     for _,m := range methods {
         def.Handlers[m] = handler
     }
     return def
 }
 
-func (this *HtmlController) Config() (*strest.Config) {
+func (this *HtmlController) Config() (*strest.ControllerConfig) {
     return this.Conf
 }
 
@@ -86,18 +86,18 @@ func (this *HtmlController) HandleRequest(request *strest.Request, conn strest.C
 type StaticFileController struct {
     Route string
     Path string
-    Conf *strest.Config
+    Conf *strest.ControllerConfig
     Handler http.Handler
 }
 
 // initial the handler via http.StripPrefix("/tmpfiles/", http.FileServer(http.Dir("/tmp")))
 func NewStaticFileController(route string, path string) *StaticFileController {
     handler := http.StripPrefix(route, http.FileServer(http.Dir(path)))
-    def := &StaticFileController{Handler : handler, Path : path, Route : route, Conf : strest.NewConfig(route)}
+    def := &StaticFileController{Handler : handler, Path : path, Route : route, Conf : strest.NewControllerConfig(route)}
     return def
 }
 
-func (this *StaticFileController) Config() (*strest.Config) {
+func (this *StaticFileController) Config() (*strest.ControllerConfig) {
     return this.Conf
 }
 

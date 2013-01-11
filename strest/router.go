@@ -40,7 +40,7 @@ type muxEntry struct {
 type DefaultNotFoundHandler struct {
 
 }
-func (h *DefaultNotFoundHandler) Config() (*Config) {
+func (h *DefaultNotFoundHandler) Config() (*ControllerConfig) {
     return nil
 }
 func (h *DefaultNotFoundHandler) HandleRequest(req *Request, conn Connection) {

@@ -27,12 +27,12 @@ func (conn WebsocketConnection) Write(response *Response) (int, error) {
 }
 
 type WebsocketController struct {
-    Conf *Config
+    Conf *ControllerConfig
     Handler websocket.Handler
     serverConfig *ServerConfig
 }
 
-func (wc WebsocketController) Config() (*Config) {
+func (wc WebsocketController) Config() (*ControllerConfig) {
     return wc.Conf
 }
 func (wc WebsocketController) HandleRequest(*Request, Connection) {
@@ -41,7 +41,7 @@ func (wc WebsocketController) HandleRequest(*Request, Connection) {
 
 func NewWebsocketController(route string, config *ServerConfig) WebsocketController {
     var wc = new(WebsocketController)
-    wc.Conf = NewConfig(route)
+    wc.Conf = NewControllerConfig(route)
     wc.serverConfig = config
     wc.Handler = websocket.Handler(func(ws *websocket.Conn) { wc.HandleWCConnection(ws) }) //use anon function because a method is impossible
     return *wc
