@@ -1,7 +1,6 @@
 package cheshire
 
 import(
-    "github.com/trendrr/cheshire-golang/strest"
     "log"
     "fmt"
     "github.com/hoisie/mustache"
@@ -9,7 +8,7 @@ import(
 )
 
 type HtmlConnection struct{
-    *strest.HttpConnection
+    *HttpConnection
 }
 
 func (this *HtmlConnection) Render(path string, context map[string]interface{}) {
@@ -41,23 +40,23 @@ func (this *HtmlConnection) WriteContent(value interface{}) {
 
 
 type HtmlController struct {
-    Handlers map[string] func(*strest.Request, *HtmlConnection)
-    Conf *strest.ControllerConfig
+    Handlers map[string] func(*Request, *HtmlConnection)
+    Conf *ControllerConfig
 }
 
-func NewHtmlController(route string, methods []string, handler func(*strest.Request, *HtmlConnection)) *HtmlController {
-    def := &HtmlController{Handlers : make(map[string] func(*strest.Request, *HtmlConnection)), Conf : strest.NewControllerConfig(route)}
+func NewHtmlController(route string, methods []string, handler func(*Request, *HtmlConnection)) *HtmlController {
+    def := &HtmlController{Handlers : make(map[string] func(*Request, *HtmlConnection)), Conf : NewControllerConfig(route)}
     for _,m := range methods {
         def.Handlers[m] = handler
     }
     return def
 }
 
-func (this *HtmlController) Config() (*strest.ControllerConfig) {
+func (this *HtmlController) Config() (*ControllerConfig) {
     return this.Conf
 }
 
-func (this *HtmlController) HandleRequest(request *strest.Request, conn strest.Connection) {
+func (this *HtmlController) HandleRequest(request *Request, conn Connection) {
     handler := this.Handlers[request.Strest.Method]
     if handler == nil {
         handler = this.Handlers["ALL"]
@@ -69,7 +68,7 @@ func (this *HtmlController) HandleRequest(request *strest.Request, conn strest.C
         return
     }
 
-    connection, ok := conn.(*strest.HttpConnection)
+    connection, ok := conn.(*HttpConnection)
     if !ok {
         log.Println("not an http connection")
         //not an http connect
@@ -86,22 +85,22 @@ func (this *HtmlController) HandleRequest(request *strest.Request, conn strest.C
 type StaticFileController struct {
     Route string
     Path string
-    Conf *strest.ControllerConfig
+    Conf *ControllerConfig
     Handler http.Handler
 }
 
 // initial the handler via http.StripPrefix("/tmpfiles/", http.FileServer(http.Dir("/tmp")))
 func NewStaticFileController(route string, path string) *StaticFileController {
     handler := http.StripPrefix(route, http.FileServer(http.Dir(path)))
-    def := &StaticFileController{Handler : handler, Path : path, Route : route, Conf : strest.NewControllerConfig(route)}
+    def := &StaticFileController{Handler : handler, Path : path, Route : route, Conf : NewControllerConfig(route)}
     return def
 }
 
-func (this *StaticFileController) Config() (*strest.ControllerConfig) {
+func (this *StaticFileController) Config() (*ControllerConfig) {
     return this.Conf
 }
 
-func (this StaticFileController) HandleRequest(*strest.Request, strest.Connection) {
+func (this StaticFileController) HandleRequest(*Request, Connection) {
     //Empty method, this is never called because we have the HttpHijack method in place
 }
 

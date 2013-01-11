@@ -2,14 +2,13 @@ package cheshire
 
 import (
 	"github.com/kylelemons/go-gypsy/yaml"
-    "github.com/trendrr/cheshire-golang/strest"
 	"log"
 	"fmt"
 )
 
 
 // Parses a server config from a YAML file
-func NewServerConfigFile(path string) *strest.ServerConfig {
+func NewServerConfigFile(path string) *ServerConfig {
 	conf, err := yaml.ReadFile(path)
 	if err != nil {
 		//do something
@@ -24,7 +23,7 @@ func NewServerConfigFile(path string) *strest.ServerConfig {
 	}
 
 	dynmap := toDynMap(m)
-	instance := strest.NewServerConfig()
+	instance := NewServerConfig()
 	instance.PutAll(dynmap)
 	return instance
 }
@@ -49,8 +48,8 @@ func fromNode(node yaml.Node) interface{} {
 }
 
 // fills the passed in dynmap with the values from the yaml map
-func toDynMap(mp yaml.Map) *strest.DynMap {
-	dynmap := strest.NewDynMap()
+func toDynMap(mp yaml.Map) *DynMap {
+	dynmap := NewDynMap()
 	for k,v := range mp {
 		dynmap.Put(k, fromNode(v))
 	}

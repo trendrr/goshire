@@ -5,12 +5,11 @@ import (
     "reflect"
     "runtime"
     "strings"
-    "github.com/trendrr/cheshire-golang/strest"
     "log"
 )
 
 type Bootstrap struct {
-    Conf       *strest.ServerConfig
+    Conf       *ServerConfig
 }
 
 // Runs All methods that have prefix of Init
@@ -64,7 +63,7 @@ func (this *Bootstrap) InitWebSockets() {
     if this.Conf.Exists("listeners.http.websockets.route") {
         route, ok := this.Conf.GetString("listeners.http.websockets.route")
         if ok {
-            this.Conf.Register(strest.NewWebsocketController(route, this.Conf))    
+            this.Conf.Register(NewWebsocketController(route, this.Conf))    
         }
     }
 
@@ -79,20 +78,20 @@ func (this *Bootstrap) InitControllers() {
 //
 // a queue of controllers so we can register controllers 
 // before the bootstrap is initialized
-var registerQueue []strest.Controller
+var registerQueue []Controller
 
 // Registers a controller funtion for api calls 
-func RegisterApi(route string, method string, handler func(*strest.Request,strest.Connection)) {
-    Register(strest.NewController(route, []string{method}, handler))
+func RegisterApi(route string, method string, handler func(*Request,Connection)) {
+    Register(NewController(route, []string{method}, handler))
 }
 
 // Registers a controller function for html pages  
-func RegisterHtml(route string, method string, handler func(*strest.Request, *HtmlConnection)) {
+func RegisterHtml(route string, method string, handler func(*Request, *HtmlConnection)) {
     Register(NewHtmlController(route, []string{method}, handler))
 }
 
 // Registers a new controller
-func Register(controller strest.Controller) {
+func Register(controller Controller) {
     registerQueue = append(registerQueue, controller)    
 }
 
@@ -101,7 +100,7 @@ func NewBootstrapFile(configPath string) *Bootstrap {
     return NewBootstrap(conf)
 }
 
-func NewBootstrap(config *strest.ServerConfig) *Bootstrap {
+func NewBootstrap(config *ServerConfig) *Bootstrap {
     //create an instance of our application bootstrap
     bs := &Bootstrap{Conf: config}
 
@@ -109,7 +108,7 @@ func NewBootstrap(config *strest.ServerConfig) *Bootstrap {
     return bs
 }
 
-func NewExtendedBootstrap(configPath string,extentions []func(conf *strest.ServerConfig)) *Bootstrap {
+func NewExtendedBootstrap(configPath string,extentions []func(conf *ServerConfig)) *Bootstrap {
     //create and run the default bootstrap
     bs := NewBootstrapFile(configPath)
 
@@ -135,7 +134,7 @@ func (this *Bootstrap) Start() {
         if !ok {
             log.Println("ERROR: Couldn't start http listener ", port)
         } else {
-            go strest.HttpListen(port, this.Conf)    
+            go HttpListen(port, this.Conf)    
         }
     }
 
@@ -144,7 +143,7 @@ func (this *Bootstrap) Start() {
         if !ok {
             log.Println("ERROR: Couldn't start json listener")
         } else {
-            go strest.JsonListen(port, this.Conf)    
+            go JsonListen(port, this.Conf)    
         }
     }
 
