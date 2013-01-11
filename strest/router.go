@@ -124,6 +124,15 @@ func (mux *Router) Match(path string) (h Controller) {
         return
 }
 
+func (this *Router) GetController(route string)(Controller, bool) {
+    this.mu.RLock()
+    defer this.mu.RUnlock()
+    elem, ok := this.m[route]
+    if !ok {
+        return nil, ok
+    }
+    return elem.h, true
+}
 
 // Handle registers the handler for the given pattern.
 // If a handler already exists for pattern, Handle panics.
