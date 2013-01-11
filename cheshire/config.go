@@ -1,11 +1,10 @@
 package cheshire
 
 import (
+	"fmt"
 	"github.com/kylelemons/go-gypsy/yaml"
 	"log"
-	"fmt"
 )
-
 
 // Parses a server config from a YAML file
 func NewServerConfigFile(path string) *ServerConfig {
@@ -28,21 +27,19 @@ func NewServerConfigFile(path string) *ServerConfig {
 	return instance
 }
 
-
 func fromNode(node yaml.Node) interface{} {
-	switch valType := node.(type) {	
-		case yaml.Map :
-			return toDynMap(valType)
-		case yaml.List :
-			sl := make([]interface{}, len(valType))
-			for i,v := range valType {
-				sl[i] = fromNode(v)
-			}
-			return sl
-		case yaml.Scalar :
-			return valType.String()
-		
-			
+	switch valType := node.(type) {
+	case yaml.Map:
+		return toDynMap(valType)
+	case yaml.List:
+		sl := make([]interface{}, len(valType))
+		for i, v := range valType {
+			sl[i] = fromNode(v)
+		}
+		return sl
+	case yaml.Scalar:
+		return valType.String()
+
 	}
 	return nil //should never be possible
 }
@@ -50,7 +47,7 @@ func fromNode(node yaml.Node) interface{} {
 // fills the passed in dynmap with the values from the yaml map
 func toDynMap(mp yaml.Map) *DynMap {
 	dynmap := NewDynMap()
-	for k,v := range mp {
+	for k, v := range mp {
 		dynmap.Put(k, fromNode(v))
 	}
 	return dynmap
