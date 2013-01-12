@@ -34,7 +34,7 @@ For a quick start boilerplate project, check out Wildling. http://github.com/mde
 
 ##Docs
 
-Here are the go docs. http://godoc.org/github.com/trendrr/cheshire-golang
+Here are the go docs. http://godoc.org/github.com/trendrr/cheshire-golang/cheshire
 
 ##Credits
 
