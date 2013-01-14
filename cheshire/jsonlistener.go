@@ -66,7 +66,7 @@ func handleConnection(conn JsonConnection) {
 			break
 		}
 
-		controller := conn.serverConfig.Router.Match(req.Strest.Uri)
+		controller := conn.serverConfig.Router.Match(req.Strest.Method, req.Strest.Uri)
 		controller.HandleRequest(&req, conn)
 	}
 	log.Print("DISCONNECT!")

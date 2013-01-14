@@ -53,7 +53,7 @@ func (this *Bootstrap) InitStaticFiles() {
 			log.Println("Error initing static files: http.static_files.directory")
 			return
 		}
-		this.Conf.Register(NewStaticFileController(route, path))
+		this.Conf.Register([]string{"GET"}, NewStaticFileController(route, path))
 	}
 }
 
@@ -61,7 +61,7 @@ func (this *Bootstrap) InitWebSockets() {
 	if this.Conf.Exists("listeners.http.websockets.route") {
 		route, ok := this.Conf.GetString("listeners.http.websockets.route")
 		if ok {
-			this.Conf.Register(NewWebsocketController(route, this.Conf))
+			this.Conf.Register([]string{"GET","POST","PUT","DELETE"}, NewWebsocketController(route, this.Conf))
 		}
 	}
 
@@ -69,28 +69,31 @@ func (this *Bootstrap) InitWebSockets() {
 
 func (this *Bootstrap) InitControllers() {
 	for _, contr := range registerQueue {
-		this.Conf.Register(contr)
+		this.Conf.Register(contr.Methods, contr.C)
 	}
 }
 
 //
 // a queue of controllers so we can register controllers 
 // before the bootstrap is initialized
-var registerQueue []Controller
-
+var registerQueue []controllerWrapper
+type controllerWrapper struct {
+    C Controller
+    Methods []string
+}
 // Registers a controller funtion for api calls 
 func RegisterApi(route string, method string, handler func(*Request, Connection)) {
-	Register(NewController(route, []string{method}, handler))
+	Register([]string{method}, NewController(route, []string{method}, handler))
 }
 
 // Registers a controller function for html pages  
 func RegisterHtml(route string, method string, handler func(*Request, *HtmlConnection)) {
-	Register(NewHtmlController(route, []string{method}, handler))
+	Register([]string{method}, NewHtmlController(route, []string{method}, handler))
 }
 
 // Registers a new controller
-func Register(controller Controller) {
-	registerQueue = append(registerQueue, controller)
+func Register(methods []string, controller Controller) {
+	registerQueue = append(registerQueue, controllerWrapper{controller, methods})
 }
 
 func NewBootstrapFile(configPath string) *Bootstrap {

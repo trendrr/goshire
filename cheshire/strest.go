@@ -80,8 +80,9 @@ type Connection interface {
 
 
 type RouteMatcher interface {
-    // A controller matches the given path and method
+    // A controller matches the given method, path
 	Match(string, string) Controller
+	// Registers a controller for the specified methods 
 	Register([]string, Controller)
 }
 type ServerConfig struct {

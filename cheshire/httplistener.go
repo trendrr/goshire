@@ -48,7 +48,7 @@ type HttpHijacker interface {
 }
 
 func (this *httpHandler) ServeHTTP(writer http.ResponseWriter, req *http.Request) {
-	controller := this.serverConfig.Router.Match(req.URL.Path)
+	controller := this.serverConfig.Router.Match(req.Method, req.URL.Path)
 
 	//check if controller is the special HttpHijacker.
 	h, hijack := controller.(HttpHijacker)

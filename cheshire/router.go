@@ -93,7 +93,7 @@ func cleanPath(p string) string {
 
 // Find a handler on a handler map given a path string
 // Most-specific (longest) pattern wins
-func (this *Router) match(path string, method string) Controller {
+func (this *Router) match(method string, path string) Controller {
 	var h Controller
 	var n = 0
     m, ok := this.getMethodMap(method)
@@ -115,11 +115,11 @@ func (this *Router) match(path string, method string) Controller {
 
 // Match returns the registered Controller that matches the
 // request or, if no match the registered not found handler is returned
-func (mux *Router) Match(path string, method string) (h Controller) {
+func (mux *Router) Match(method string, path string) (h Controller) {
 	mux.mu.RLock()
 	defer mux.mu.RUnlock()
 	
-    h = mux.match(path, method)
+    h = mux.match(method, path)
 	
 	if h == nil {
 		log.Print("Not Found.  TODO: do something!")
@@ -157,6 +157,7 @@ func (this *Router) getMethodMap(method string) (map[string]muxEntry, bool) {
 func (this *Router) reg(method string, handler Controller) {
     var pattern = handler.Config().Route
     m, ok := this.getMethodMap(method)
+    
     if !ok {
         panic("cheshire: " + method + " is not a valid method!")
     }
