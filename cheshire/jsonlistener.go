@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"sync"
 	"net"
 )
 
@@ -13,6 +14,7 @@ type JsonConnection struct {
 	serverConfig *ServerConfig
 	conn         net.Conn
 	writer       *bufio.Writer
+	writerLock sync.Mutex
 }
 
 func (conn JsonConnection) Write(response *Response) (int, error) {
@@ -21,6 +23,8 @@ func (conn JsonConnection) Write(response *Response) (int, error) {
 		//TODO: uhh, do something..
 		log.Print(err)
 	}
+	defer conn.writerLock.Unlock()
+	conn.writerLock.Lock()
 	// log.Println("writing ", string(json))
 	bytes, err := conn.writer.Write(json)
 	conn.writer.Flush()
@@ -67,7 +71,7 @@ func handleConnection(conn JsonConnection) {
 		}
 
 		controller := conn.serverConfig.Router.Match(req.Strest.Method, req.Strest.Uri)
-		controller.HandleRequest(&req, conn)
+		go controller.HandleRequest(&req, conn)
 	}
 	log.Print("DISCONNECT!")
 }

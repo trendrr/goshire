@@ -7,11 +7,14 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"sync"
 )
 
 type WebsocketConnection struct {
 	conn   *websocket.Conn
 	writer *bufio.Writer
+	writerLock sync.Mutex
+
 }
 
 func (conn WebsocketConnection) Write(response *Response) (int, error) {
@@ -21,6 +24,8 @@ func (conn WebsocketConnection) Write(response *Response) (int, error) {
 		log.Print(err)
 	}
 	// log.Println("writing ", string(json))
+	defer conn.writerLock.Unlock()
+	conn.writerLock.Lock()
 	bytes, err := conn.writer.Write(json)
 	conn.writer.Flush()
 	return bytes, err
