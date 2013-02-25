@@ -14,7 +14,8 @@ type Request struct {
 		Version float32                `json:"v"`
 		Method  string                 `json:"method"`
 		Uri     string                 `json:"uri"`
-		Params  map[string]interface{} `json:"params"`
+		ParamsMap map[string]interface{} `json:"params"`
+		Params  DynMap `json:"-"`
 		Txn     struct {
 			Id     string `json:"id"`
 			Accept string `json:"accept"`

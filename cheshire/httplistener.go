@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"sync"
 )
 
@@ -76,10 +77,20 @@ func ToStrestRequest(req *http.Request) *Request {
 		request.Strest.Txn.Accept = "single"
 	}
 
-	//parse the query params
-	values := req.URL.Query()
-	params := map[string]interface{}{}
+	if req.Method == "POST" || req.Method == "PUT" {
+		req.ParseForm()
+		request.Strest.ParamsMap =	parseValues(req.Form)
+	} else {
+		//parse the query params
+		values := req.URL.Query()
+		request.Strest.ParamsMap = parseValues(values)
+	}
+	request.Strest.Params = DynMap{request.Strest.ParamsMap}
+	return request
+}
 
+func parseValues(values url.Values) map[string]interface{} {
+	params := map[string]interface{}{}
 	for k := range values {
 		var v = values[k]
 		if len(v) == 1 {
@@ -88,8 +99,7 @@ func ToStrestRequest(req *http.Request) *Request {
 			params[k] = v
 		}
 	}
-
-	return request
+	return params
 }
 
 func HttpListen(port int, serverConfig *ServerConfig) error {

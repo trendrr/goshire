@@ -69,6 +69,8 @@ func handleConnection(conn JsonConnection) {
 			log.Print(err)
 			break
 		}
+		
+		req.Strest.Params = DynMap{req.Strest.ParamsMap}
 
 		controller := conn.serverConfig.Router.Match(req.Strest.Method, req.Strest.Uri)
 		go controller.HandleRequest(&req, conn)
