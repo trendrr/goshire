@@ -3,6 +3,7 @@ package cheshire
 import (
 	"fmt"
 	"github.com/kylelemons/go-gypsy/yaml"
+	"github.com/trendrr/cheshire-golang/dynmap"
 	"log"
 )
 
@@ -45,10 +46,10 @@ func fromNode(node yaml.Node) interface{} {
 }
 
 // fills the passed in dynmap with the values from the yaml map
-func toDynMap(mp yaml.Map) *DynMap {
-	dynmap := NewDynMap()
+func toDynMap(mp yaml.Map) *dynmap.DynMap {
+	d := dynmap.NewDynMap()
 	for k, v := range mp {
-		dynmap.Put(k, fromNode(v))
+		d.Put(k, fromNode(v))
 	}
-	return dynmap
+	return d
 }

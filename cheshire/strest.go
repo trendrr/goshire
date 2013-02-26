@@ -2,6 +2,7 @@ package cheshire
 
 import (
 	"log"
+		"github.com/trendrr/cheshire-golang/dynmap"
 )
 
 // what Strest protocol version we are using.
@@ -11,7 +12,7 @@ const StrestVersion = float32(2)
 // See protocol spec https://github.com/trendrr/strest-server/wiki/STREST-Protocol-Spec
 type Request struct {
 	//params parsed into a dynmap
-	Params  DynMap `json:"-"`
+	Params  dynmap.DynMap `json:"-"`
 
 	Strest struct {
 		Version float32                `json:"v"`
@@ -29,7 +30,7 @@ type Request struct {
 // Standard STREST response
 // See protocol spec https://github.com/trendrr/strest-server/wiki/STREST-Protocol-Spec
 type Response struct {
-	DynMap
+	dynmap.DynMap
 }
 
 func (this *Response) TxnId() string {
@@ -72,7 +73,7 @@ func (this *Response) SetStatusMessage(message string) {
 // Create a new response object.
 // Values are all set to defaults
 func NewResponse(request *Request) *Response {
-	response := &Response{*NewDynMap()}
+	response := &Response{*dynmap.NewDynMap()}
 	response.SetStatusMessage("OK")
 	response.SetStatusCode(200)
 	response.SetTxnStatus("completed")
@@ -102,13 +103,13 @@ type RouteMatcher interface {
 	Register([]string, Controller)
 }
 type ServerConfig struct {
-	*DynMap
+	*dynmap.DynMap
 	Router RouteMatcher
 }
 
 // Creates a new server config with a default routematcher
 func NewServerConfig() *ServerConfig {
-	return &ServerConfig{NewDynMap(), NewDefaultRouter()}
+	return &ServerConfig{dynmap.NewDynMap(), NewDefaultRouter()}
 }
 
 // Registers a controller with the RouteMatcher.  

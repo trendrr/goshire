@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"sync"
+		"github.com/trendrr/cheshire-golang/dynmap"
 )
 
 type HttpConnection struct {
@@ -85,7 +86,7 @@ func ToStrestRequest(req *http.Request) *Request {
 		values := req.URL.Query()
 		request.Strest.Params = parseValues(values)
 	}
-	request.Params = DynMap{request.Strest.Params}
+	request.Params = dynmap.DynMap{request.Strest.Params}
 	return request
 }
 

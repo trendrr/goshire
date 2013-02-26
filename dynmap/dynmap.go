@@ -1,4 +1,4 @@
-package cheshire
+package dynmap
 
 import (
 	"strings"

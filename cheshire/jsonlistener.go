@@ -8,6 +8,7 @@ import (
 	"log"
 	"sync"
 	"net"
+		"github.com/trendrr/cheshire-golang/dynmap"
 )
 
 type JsonConnection struct {
@@ -70,7 +71,7 @@ func handleConnection(conn JsonConnection) {
 			break
 		}
 		
-		req.Params = DynMap{req.Strest.Params}
+		req.Params = dynmap.DynMap{req.Strest.Params}
 
 		controller := conn.serverConfig.Router.Match(req.Strest.Method, req.Strest.Uri)
 		go controller.HandleRequest(&req, conn)

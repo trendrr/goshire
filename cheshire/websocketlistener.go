@@ -3,6 +3,7 @@ package cheshire
 import (
 	"bufio"
 	"code.google.com/p/go.net/websocket"
+	"github.com/trendrr/cheshire-golang/dynmap"
 	"encoding/json"
 	"io"
 	"log"
@@ -79,7 +80,7 @@ func (wc WebsocketController) HandleWCConnection(ws *websocket.Conn) {
 			break
 		}
 
-		req.Params = DynMap{req.Strest.Params}
+		req.Params = dynmap.DynMap{req.Strest.Params}
 		log.Print(req)
 		log.Print(req.Strest.Uri)
 		controller := wc.serverConfig.Router.Match(req.Strest.Method, req.Strest.Uri)
