@@ -2,7 +2,7 @@ package main
 
 import (
     "log"
-    "github.com/trendrr/cheshire-golang/strest"
+    "github.com/trendrr/cheshire-golang/cheshire"
 )
 
 func main() {
@@ -10,22 +10,23 @@ func main() {
     bootstrap := cheshire.NewBootstrapFile("example_config.yaml")
     log.Println("HERE:1")
     //a ping controller api controller.  
-    pinger := func(request *strest.Request,conn strest.Connection) {
-        response := strest.NewResponse(request)
+    pinger := func(request *cheshire.Request,conn cheshire.Connection) {
+        log.Println(request.Strest.Params)
+        response := cheshire.NewResponse(request)
         response.Put("data", "PONG")
         conn.Write(response)
     }
     //now register the api call
-    bootstrap.RegisterApi("/ping", []string{"GET"}, pinger)
+    cheshire.RegisterApi("/ping", "GET", pinger)
     log.Println("HERE:1")
     
     //an example html page
-    four04 := func(request *strest.Request, conn *cheshire.HtmlConnection) {
+    four04 := func(request *cheshire.Request, conn *cheshire.HtmlConnection) {
         context := make(map[string]interface{})
         context["message"] = "this is a 404 page"
         conn.Render("/404.html", context)
     }
-    bootstrap.RegisterHtml("/404", []string{"GET"}, four04)
+    cheshire.RegisterHtml("/404", "GET", four04)
 
     log.Println("Starting")
     //starts listening on all configured interfaces
