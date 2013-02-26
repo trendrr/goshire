@@ -5,6 +5,7 @@ import (
 	// "log"
 	"encoding/json"
 	"errors"
+	"time"
 	// "fmt"
 )
 
@@ -71,6 +72,26 @@ func (this *DynMap) GetString(key string) (string, bool) {
 //is returned
 func (this *DynMap) GetStringOrDefault(key string, def string) string {
 	tmp, ok := this.GetString(key)
+	if !ok {
+		return def
+	}
+	return tmp
+}
+
+func (this *DynMap) GetTime(key string) (time.Time, bool) {
+	tmp, ok := this.Get(key)
+	if !ok {
+		return time.Now(), false
+	}
+	t, err := ToTime(tmp)
+	if err != nil {
+		return time.Now(), false
+	}
+	return t, true
+}
+
+func (this *DynMap) GetTimeOrDefault(key string, def time.Time) (time.Time) {
+	tmp, ok := this.GetTime(key)
 	if !ok {
 		return def
 	}
