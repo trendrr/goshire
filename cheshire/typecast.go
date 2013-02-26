@@ -4,13 +4,31 @@ import (
 	"fmt"
 	"log"
 	"strconv"
+	"time"
 )
+
+//parse time
+func ToTime(value interface{}) (tm time.Time, err error) {
+	switch v := value.(type) {
+	case string:
+		t, err := time.Parse(time.RFC3339, v)
+		if err == nil {
+			return t, nil
+		}
+		return time.Now(), err
+	}
+	return time.Now(), fmt.Errorf("Unable to parse (%s) into a time", value)
+}
 
 func ToInt64(value interface{}) (i int64, err error) {
 	switch v := value.(type) {
 	case string:
 		i, err := strconv.ParseInt(v, 0, 64)
 		return i, err
+	case int:
+		return int64(v), nil
+	case uint:
+		return int64(v), nil
 	case int64:
 		return v, nil
 	case int32:
@@ -32,7 +50,7 @@ func ToInt64(value interface{}) (i int64, err error) {
 	case float64:
 		return int64(v), nil
 	default:
-		log.Println("uhh ", v)
+		log.Println("uhh int64 ", v)
 
 	}
 	//TODO: baaaad
