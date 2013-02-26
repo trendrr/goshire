@@ -48,6 +48,11 @@ func (this *Response) SetTxnStatus(status string) {
 	this.PutWithDot("strest.txn.status", status)
 }
 
+func (this *Response) SetStatus(code int, message string) {
+	this.SetStatusCode(code)
+	this.SetStatusMessage(message)
+}
+
 func (this *Response) StatusCode() int {
 	return 200 //this.getIntOrDefault("status.code", 200)
 }
@@ -72,7 +77,14 @@ func NewResponse(request *Request) *Response {
 	response.SetStatusCode(200)
 	response.SetTxnStatus("completed")
 	response.SetTxnId(request.Strest.Txn.Id)
-	response.PutWithDot("strest.version", StrestVersion)
+	response.PutWithDot("strest.v", StrestVersion)
+	return response
+}
+
+
+func NewErrorResponse(request *Request, code int, message string) *Response{
+	response := NewResponse(request)
+	response.SetStatus(code, message)
 	return response
 }
 
