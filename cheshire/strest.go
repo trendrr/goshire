@@ -10,12 +10,15 @@ const StrestVersion = float32(2)
 // Standard STREST request.
 // See protocol spec https://github.com/trendrr/strest-server/wiki/STREST-Protocol-Spec
 type Request struct {
+	//params parsed into a dynmap
+	Params  DynMap `json:"-"`
+
 	Strest struct {
 		Version float32                `json:"v"`
 		Method  string                 `json:"method"`
 		Uri     string                 `json:"uri"`
-		ParamsMap map[string]interface{} `json:"params"`
-		Params  DynMap `json:"-"`
+		Params map[string]interface{} `json:"params"`
+		
 		Txn     struct {
 			Id     string `json:"id"`
 			Accept string `json:"accept"`

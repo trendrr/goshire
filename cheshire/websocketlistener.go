@@ -79,6 +79,7 @@ func (wc WebsocketController) HandleWCConnection(ws *websocket.Conn) {
 			break
 		}
 
+		req.Params = DynMap{req.Strest.Params}
 		log.Print(req)
 		log.Print(req.Strest.Uri)
 		controller := wc.serverConfig.Router.Match(req.Strest.Method, req.Strest.Uri)
