@@ -15,6 +15,10 @@ type DynMap struct {
 	Map map[string]interface{}
 }
 
+type DynMaper interface {
+	ToDynMap() *DynMap
+}
+
 func NewDynMap() *DynMap {
 	return &DynMap{make(map[string]interface{})}
 }

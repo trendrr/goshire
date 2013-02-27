@@ -63,6 +63,8 @@ func ToString(value interface{}) string {
 
 func ToDynMap(value interface{}) (*DynMap, bool) {
 	switch v := value.(type) {
+	case DynMaper:
+		return v.ToDynMap(), true
 	case map[string]interface{}:
 		dynmap := NewDynMap()
 		dynmap.Map = v
