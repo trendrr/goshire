@@ -102,6 +102,18 @@ func (this *DynMap) GetTimeOrDefault(key string, def time.Time) (time.Time) {
 	return tmp
 }
 
+// Adds the item to a slice
+func (this *DynMap) AddToSlice(key string, mp interface{}) error{
+	this.PutIfAbsent(key, make([]interface{}, 0))
+	lst, _ := this.Get(key)
+	switch v := lst.(type) {
+	case []interface{} :
+		v = append(v, mp)
+		this.Put(key, v)
+	}
+	return nil
+}
+
 // puts all the values from the passed in map into this dynmap
 // the passed in map must be convertable to a DynMap via ToDynMap.
 // returns false if the passed value is not convertable to dynmap
