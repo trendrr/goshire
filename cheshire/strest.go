@@ -27,6 +27,36 @@ type Request struct {
 	} `json:"strest"`
 }
 
+// Create a new request object.
+// Values are all set to defaults
+func NewRequest(uri, method string) *Request {
+	request := &Request{}
+	request.Strest.Version = StrestVersion
+	request.Strest.Uri = uri
+	request.Strest.Method = method
+	request.SetTxnAccept("single")
+	return request
+}
+
+
+//return the txnid.
+func (this *Request) TxnId() string {
+	return this.Strest.Txn.Id
+}
+
+func (this *Request) SetTxnId(id string) {
+	this.Strest.Txn.Id = id
+}
+
+func (this *Request) TxnAccept() string {
+	return this.Strest.Txn.Accept
+}
+
+func (this *Request) SetTxnAccept(accept string) {
+	this.Strest.Txn.Accept = accept
+}
+
+
 // Standard STREST response
 // See protocol spec https://github.com/trendrr/strest-server/wiki/STREST-Protocol-Spec
 type Response struct {
