@@ -8,13 +8,12 @@ import (
 	"log"
 	"sync"
 	"net"
-		"github.com/trendrr/cheshire-golang/dynmap"
+		// "github.com/trendrr/cheshire-golang/dynmap"
 )
 
 type JsonConnection struct {
 	serverConfig *ServerConfig
 	conn         net.Conn
-	writer       *bufio.Writer
 	writerLock sync.Mutex
 }
 
@@ -26,9 +25,8 @@ func (conn JsonConnection) Write(response *Response) (int, error) {
 	}
 	defer conn.writerLock.Unlock()
 	conn.writerLock.Lock()
-	// log.Println("writing ", string(json))
-	bytes, err := conn.writer.Write(json)
-	conn.writer.Flush()
+	log.Println("writing ", string(json))
+	bytes, err := conn.conn.Write(json)
 	return bytes, err
 }
 
@@ -52,11 +50,12 @@ func JsonListen(port int, config *ServerConfig) error {
 	return nil
 }
 
+
+
 func handleConnection(conn JsonConnection) {
 	defer conn.conn.Close()
 	// log.Print("CONNECT!")
-	conn.writer = bufio.NewWriter(conn.conn)
-
+	
 	dec := json.NewDecoder(bufio.NewReader(conn.conn))
 
 	for {
@@ -70,11 +69,11 @@ func handleConnection(conn JsonConnection) {
 			log.Print(err)
 			break
 		}
-		
-		req.Params = dynmap.DynMap{req.Strest.Params}
-
+		//request
 		controller := conn.serverConfig.Router.Match(req.Strest.Method, req.Strest.Uri)
 		go controller.HandleRequest(&req, conn)
 	}
+
+
 	log.Print("DISCONNECT!")
 }

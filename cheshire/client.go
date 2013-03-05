@@ -9,6 +9,7 @@ import (
     "io"
         "sync/atomic"
     "fmt"
+        "github.com/trendrr/cheshire-golang/dynmap"
 )
 
 var strestId int64 = int64(0)
@@ -42,7 +43,7 @@ func NewClient(host string, port int) (*Client, error) {
         return nil, err
     }
     client.conn = conn
-    client.eventLoop()
+    go client.eventLoop()
 
     return client, nil
 }
@@ -53,7 +54,7 @@ func (this *Client) createConn() (*cheshireConn, error) {
         return nil, err
     }
 
-    c.eventLoop()
+    go c.eventLoop()
     return c, nil
 }
 
@@ -178,7 +179,7 @@ func newCheshireConn(addr string, disconnect chan *cheshireConn, writeTimeout ti
         addr:             addr,
         writeTimeout:     writeTimeout,
         exitChan:         make(chan int),
-        incomingChan:   make(chan *Response),
+        incomingChan:   make(chan *Response, 25),
         outgoingChan:   make(chan *cheshireRequest, 25),
         disconnectChan: disconnect,
         requests: make(map[string] *cheshireRequest),
@@ -200,11 +201,11 @@ func (this *cheshireConn) String() string {
 // loop that listens for incoming messages.
 func (this *cheshireConn) listener() {
     decoder := json.NewDecoder(bufio.NewReader(this.Conn))
+    log.Printf("Starting Cheshire Client %s", this.addr)
     defer func() {this.exitChan <- 1}()
     for {
-        var res Response
-        err := decoder.Decode(&res)
-
+        res := &Response{*dynmap.NewDynMap()}
+        err := decoder.Decode(res)
         if err == io.EOF {
             log.Print(err)
             break
@@ -212,13 +213,15 @@ func (this *cheshireConn) listener() {
             log.Print(err)
             break
         }
-        this.incomingChan <- &res
+        log.Printf("DECODED: %s", res.TxnId())
+        this.incomingChan <- res
     }
-
 }
 
 func (this *cheshireConn) cleanup() {
     this.Conn.Close()
+    log.Println("Closing Cheshire Client: %s", this.addr)
+
     err := fmt.Errorf("Connection is closed %s", this.addr)
     //now error out all waiting
     for len(this.outgoingChan) > 0 {
@@ -244,11 +247,14 @@ func (this *cheshireConn) eventLoop() {
         select {
             case request := <- this.outgoingChan:
                 //add to the request map
+
                 this.requests[request.req.TxnId()] = request
 
                 //send the request
                 this.SetWriteDeadline(time.Now().Add(this.writeTimeout))
-                json, err := json.Marshal(request)
+                
+                // log.Printf("Sending: %s", request.req.TxnId())
+                json, err := json.Marshal(request.req)
                 if err != nil {
                     //TODO: uhh, do something..
                     log.Print(err)
@@ -262,9 +268,13 @@ func (this *cheshireConn) eventLoop() {
                     continue;
                 }
             case response := <- this.incomingChan:
+                log.Printf("RECEIVED: %s", response.TxnId())
                 req, ok := this.requests[response.TxnId()]
                 if !ok {
                     log.Printf("Uhh, received response, but had no request %s", response)
+                    // for k,_ := range(this.requests) {
+                    //     log.Println(k)
+                    // }
                     continue; //break?
                 }
                 req.resultChan <- response

@@ -80,13 +80,14 @@ func ToStrestRequest(req *http.Request) *Request {
 
 	if req.Method == "POST" || req.Method == "PUT" {
 		req.ParseForm()
-		request.Strest.Params =	parseValues(req.Form)
+		pms, _ := dynmap.ToDynMap(parseValues(req.Form))
+		request.Strest.Params = pms
 	} else {
 		//parse the query params
 		values := req.URL.Query()
-		request.Strest.Params = parseValues(values)
+		pms, _ := dynmap.ToDynMap(parseValues(values))
+		request.Strest.Params = pms
 	}
-	request.Params = dynmap.DynMap{request.Strest.Params}
 	return request
 }
 

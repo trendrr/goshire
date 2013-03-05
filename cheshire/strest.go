@@ -11,14 +11,11 @@ const StrestVersion = float32(2)
 // Standard STREST request.
 // See protocol spec https://github.com/trendrr/strest-server/wiki/STREST-Protocol-Spec
 type Request struct {
-	//params parsed into a dynmap
-	Params  dynmap.DynMap `json:"-"`
-
 	Strest struct {
 		Version float32                `json:"v"`
 		Method  string                 `json:"method"`
 		Uri     string                 `json:"uri"`
-		Params map[string]interface{} `json:"params"`
+		Params *dynmap.DynMap `json:"-"`
 		
 		Txn     struct {
 			Id     string `json:"id"`
@@ -31,6 +28,7 @@ type Request struct {
 // Values are all set to defaults
 func NewRequest(uri, method string) *Request {
 	request := &Request{}
+	request.Strest.Params = dynmap.NewDynMap()
 	request.Strest.Version = StrestVersion
 	request.Strest.Uri = uri
 	request.Strest.Method = method
@@ -85,7 +83,7 @@ func (this *Response) SetStatus(code int, message string) {
 }
 
 func (this *Response) StatusCode() int {
-	return 200 //this.getIntOrDefault("status.code", 200)
+	return this.GetIntOrDefault("status.code", 200)
 }
 
 func (this *Response) SetStatusCode(code int) {

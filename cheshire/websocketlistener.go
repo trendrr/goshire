@@ -3,7 +3,7 @@ package cheshire
 import (
 	"bufio"
 	"code.google.com/p/go.net/websocket"
-	"github.com/trendrr/cheshire-golang/dynmap"
+	// "github.com/trendrr/cheshire-golang/dynmap"
 	"encoding/json"
 	"io"
 	"log"
@@ -13,7 +13,6 @@ import (
 
 type WebsocketConnection struct {
 	conn   *websocket.Conn
-	writer *bufio.Writer
 	writerLock sync.Mutex
 
 }
@@ -27,8 +26,7 @@ func (conn WebsocketConnection) Write(response *Response) (int, error) {
 	// log.Println("writing ", string(json))
 	defer conn.writerLock.Unlock()
 	conn.writerLock.Lock()
-	bytes, err := conn.writer.Write(json)
-	conn.writer.Flush()
+	bytes, err := conn.conn.Write(json)
 	return bytes, err
 }
 
@@ -67,7 +65,7 @@ func (wc WebsocketController) HandleWCConnection(ws *websocket.Conn) {
 	// conn.writer = bufio.NewWriter(conn.conn)
 
 	dec := json.NewDecoder(bufio.NewReader(ws))
-	conn := WebsocketConnection{conn: ws, writer: bufio.NewWriter(ws)}
+	conn := WebsocketConnection{conn: ws}
 	for {
 		var req Request
 		err := dec.Decode(&req)
@@ -79,8 +77,6 @@ func (wc WebsocketController) HandleWCConnection(ws *websocket.Conn) {
 			log.Print(err)
 			break
 		}
-
-		req.Params = dynmap.DynMap{req.Strest.Params}
 		log.Print(req)
 		log.Print(req.Strest.Uri)
 		controller := wc.serverConfig.Router.Match(req.Strest.Method, req.Strest.Uri)
@@ -91,7 +87,4 @@ func (wc WebsocketController) HandleWCConnection(ws *websocket.Conn) {
 		go controller.HandleRequest(&req, conn)
 	}
 	log.Print("DISCONNECT!")
-
-	// io.Copy(ws, ws)
-
 }
