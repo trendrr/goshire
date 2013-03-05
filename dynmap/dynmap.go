@@ -29,7 +29,7 @@ func (this *DynMap) MarshalJSON() ([]byte, error) {
 }
 
 func (this *DynMap) UnmarshalJSON(bytes []byte) error {
-	return json.Unmarshal(bytes, this.Map)
+	return json.Unmarshal(bytes, &this.Map)
 }
 
 // Gets the value at the specified key as an int64.  returns -1,false if value not available or is not convertable
