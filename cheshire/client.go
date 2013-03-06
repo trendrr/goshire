@@ -40,7 +40,8 @@ func NewClient(host string, port int) (*Client, error) {
 		Port:           port,
 		isClosed:       false,
 		disconnectChan: make(chan *cheshireConn),
-		PingUri:        "/ping",
+		exitChan: make(chan int),
+        PingUri:        "/ping",
 	}
 	conn, err := client.createConn()
 	if err != nil {
@@ -50,6 +51,12 @@ func NewClient(host string, port int) (*Client, error) {
 	go client.eventLoop()
 
 	return client, nil
+}
+
+//Close this client.
+func (this *Client) Close() {
+    this.exitChan <- 1
+    log.Println("Send exit message")
 }
 
 func (this *Client) createConn() (*cheshireConn, error) {
@@ -114,7 +121,8 @@ func (this *Client) eventLoop() {
 	for !this.isClosed {
 		select {
 		case <-this.exitChan:
-			//close all connections
+			log.Println("Exiting Client")
+            //close all connections
 			this.conn.Close()
 			this.isClosed = true
 			break
@@ -142,7 +150,9 @@ func (this *Client) eventLoop() {
 }
 
 // Does a synchronous api call.  times out after the requested timeout.
+// This will automatically set the txn accept to single
 func (this *Client) ApiCallSync(req *Request, timeout time.Duration) (*Response, error) {
+    req.SetTxnAccept("single")
 	response, _, err := this.doApiCallSync(req, timeout)
 	return response, err
 }
