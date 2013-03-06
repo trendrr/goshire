@@ -3,11 +3,11 @@ package cheshire
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/trendrr/cheshire-golang/dynmap"
 	"log"
 	"net/http"
 	"net/url"
 	"sync"
-		"github.com/trendrr/cheshire-golang/dynmap"
 )
 
 type HttpConnection struct {

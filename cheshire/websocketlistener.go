@@ -12,9 +12,8 @@ import (
 )
 
 type WebsocketConnection struct {
-	conn   *websocket.Conn
+	conn       *websocket.Conn
 	writerLock sync.Mutex
-
 }
 
 func (conn WebsocketConnection) Write(response *Response) (int, error) {

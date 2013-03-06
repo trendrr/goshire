@@ -61,7 +61,7 @@ func (this *Bootstrap) InitWebSockets() {
 	if this.Conf.Exists("listeners.http.websockets.route") {
 		route, ok := this.Conf.GetString("listeners.http.websockets.route")
 		if ok {
-			this.Conf.Register([]string{"GET","POST","PUT","DELETE"}, NewWebsocketController(route, this.Conf))
+			this.Conf.Register([]string{"GET", "POST", "PUT", "DELETE"}, NewWebsocketController(route, this.Conf))
 		}
 	}
 
@@ -77,10 +77,12 @@ func (this *Bootstrap) InitControllers() {
 // a queue of controllers so we can register controllers 
 // before the bootstrap is initialized
 var registerQueue []controllerWrapper
+
 type controllerWrapper struct {
-    C Controller
-    Methods []string
+	C       Controller
+	Methods []string
 }
+
 // Registers a controller funtion for api calls 
 func RegisterApi(route string, method string, handler func(*Request, Connection)) {
 	Register([]string{method}, NewController(route, []string{method}, handler))

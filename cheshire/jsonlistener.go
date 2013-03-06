@@ -6,15 +6,15 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"sync"
 	"net"
-		// "github.com/trendrr/cheshire-golang/dynmap"
+	"sync"
+	// "github.com/trendrr/cheshire-golang/dynmap"
 )
 
 type JsonConnection struct {
 	serverConfig *ServerConfig
 	conn         net.Conn
-	writerLock sync.Mutex
+	writerLock   sync.Mutex
 }
 
 func (conn JsonConnection) Write(response *Response) (int, error) {
@@ -25,7 +25,6 @@ func (conn JsonConnection) Write(response *Response) (int, error) {
 	}
 	defer conn.writerLock.Unlock()
 	conn.writerLock.Lock()
-	log.Println("writing ", string(json))
 	bytes, err := conn.conn.Write(json)
 	return bytes, err
 }
@@ -50,12 +49,10 @@ func JsonListen(port int, config *ServerConfig) error {
 	return nil
 }
 
-
-
 func handleConnection(conn JsonConnection) {
 	defer conn.conn.Close()
 	// log.Print("CONNECT!")
-	
+
 	dec := json.NewDecoder(bufio.NewReader(conn.conn))
 
 	for {
@@ -73,7 +70,6 @@ func handleConnection(conn JsonConnection) {
 		controller := conn.serverConfig.Router.Match(req.Strest.Method, req.Strest.Uri)
 		go controller.HandleRequest(&req, conn)
 	}
-
 
 	log.Print("DISCONNECT!")
 }

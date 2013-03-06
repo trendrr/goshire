@@ -3,8 +3,8 @@ package cheshire
 import (
 	"log"
 	"path"
+	"strings"
 	"sync"
-    "strings"
 )
 
 // This is a default implementation of a cheshire Router.  
@@ -26,9 +26,9 @@ import (
 type Router struct {
 	mu              sync.RWMutex
 	gets            map[string]muxEntry
-    posts           map[string]muxEntry
-    deletes         map[string]muxEntry
-    puts            map[string]muxEntry
+	posts           map[string]muxEntry
+	deletes         map[string]muxEntry
+	puts            map[string]muxEntry
 	NotFoundHandler Controller
 }
 
@@ -54,9 +54,9 @@ func (h *DefaultNotFoundHandler) HandleRequest(req *Request, conn Connection) {
 // NewServeMux allocates and returns a new CheshireMux.
 func NewDefaultRouter() *Router {
 	router := &Router{gets: make(map[string]muxEntry),
-        posts: make(map[string]muxEntry),
-        deletes: make(map[string]muxEntry),
-        puts: make(map[string]muxEntry) }
+		posts:   make(map[string]muxEntry),
+		deletes: make(map[string]muxEntry),
+		puts:    make(map[string]muxEntry)}
 	router.NotFoundHandler = new(DefaultNotFoundHandler)
 	return router
 }
@@ -96,10 +96,10 @@ func cleanPath(p string) string {
 func (this *Router) match(method string, path string) Controller {
 	var h Controller
 	var n = 0
-    m, ok := this.getMethodMap(method)
-    if !ok {
-        return nil
-    }
+	m, ok := this.getMethodMap(method)
+	if !ok {
+		return nil
+	}
 
 	for k, v := range m {
 		if !pathMatch(k, path) {
@@ -118,9 +118,9 @@ func (this *Router) match(method string, path string) Controller {
 func (mux *Router) Match(method string, path string) (h Controller) {
 	mux.mu.RLock()
 	defer mux.mu.RUnlock()
-	
-    h = mux.match(method, path)
-	
+
+	h = mux.match(method, path)
+
 	if h == nil {
 		log.Print("Not Found.  TODO: do something!")
 		h = mux.NotFoundHandler
@@ -128,50 +128,48 @@ func (mux *Router) Match(method string, path string) (h Controller) {
 	return
 }
 
-
 // Handle registers the handler for the given pattern.
 // If a handler already exists for pattern, Handle panics.
 func (this *Router) Register(methods []string, handler Controller) {
 	this.mu.Lock()
 	defer this.mu.Unlock()
-    for _,m := range(methods) {
-        this.reg(m, handler)
-    }
+	for _, m := range methods {
+		this.reg(m, handler)
+	}
 }
 
 func (this *Router) getMethodMap(method string) (map[string]muxEntry, bool) {
-    m := strings.ToUpper(method)
-    switch m {
-    case "GET" :
-        return this.gets, true
-    case "POST" :
-        return this.posts, true
-    case "PUT":
-        return this.puts, true
-    case "DELETE":
-        return this.deletes, true
-    }
-    return nil, false
+	m := strings.ToUpper(method)
+	switch m {
+	case "GET":
+		return this.gets, true
+	case "POST":
+		return this.posts, true
+	case "PUT":
+		return this.puts, true
+	case "DELETE":
+		return this.deletes, true
+	}
+	return nil, false
 }
 
 func (this *Router) reg(method string, handler Controller) {
-    var pattern = handler.Config().Route
-    m, ok := this.getMethodMap(method)
-    
-    if !ok {
-        panic("cheshire: " + method + " is not a valid method!")
-    }
+	var pattern = handler.Config().Route
+	m, ok := this.getMethodMap(method)
 
-    if pattern == "" {
-        panic("cheshire: invalid pattern " + pattern)
-    }
-    if handler == nil {
-        panic("cheshire: nil handler")
-    }
-    if m[pattern].explicit {
-        panic("cheshire: multiple registrations for " + pattern)
-    }
+	if !ok {
+		panic("cheshire: " + method + " is not a valid method!")
+	}
 
-    m[pattern] = muxEntry{explicit: true, h: handler, pattern: pattern}
+	if pattern == "" {
+		panic("cheshire: invalid pattern " + pattern)
+	}
+	if handler == nil {
+		panic("cheshire: nil handler")
+	}
+	if m[pattern].explicit {
+		panic("cheshire: multiple registrations for " + pattern)
+	}
+
+	m[pattern] = muxEntry{explicit: true, h: handler, pattern: pattern}
 }
-

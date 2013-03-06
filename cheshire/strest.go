@@ -1,8 +1,8 @@
 package cheshire
 
 import (
+	"github.com/trendrr/cheshire-golang/dynmap"
 	"log"
-		"github.com/trendrr/cheshire-golang/dynmap"
 )
 
 // what Strest protocol version we are using.
@@ -12,12 +12,12 @@ const StrestVersion = float32(2)
 // See protocol spec https://github.com/trendrr/strest-server/wiki/STREST-Protocol-Spec
 type Request struct {
 	Strest struct {
-		Version float32                `json:"v"`
-		Method  string                 `json:"method"`
-		Uri     string                 `json:"uri"`
-		Params *dynmap.DynMap `json:"-"`
-		
-		Txn     struct {
+		Version float32        `json:"v"`
+		Method  string         `json:"method"`
+		Uri     string         `json:"uri"`
+		Params  *dynmap.DynMap `json:"-"`
+
+		Txn struct {
 			Id     string `json:"id"`
 			Accept string `json:"accept"`
 		} `json:"txn"`
@@ -36,7 +36,6 @@ func NewRequest(uri, method string) *Request {
 	return request
 }
 
-
 //return the txnid.
 func (this *Request) TxnId() string {
 	return this.Strest.Txn.Id
@@ -53,7 +52,6 @@ func (this *Request) TxnAccept() string {
 func (this *Request) SetTxnAccept(accept string) {
 	this.Strest.Txn.Accept = accept
 }
-
 
 // Standard STREST response
 // See protocol spec https://github.com/trendrr/strest-server/wiki/STREST-Protocol-Spec
@@ -110,8 +108,7 @@ func NewResponse(request *Request) *Response {
 	return response
 }
 
-
-func NewErrorResponse(request *Request, code int, message string) *Response{
+func NewErrorResponse(request *Request, code int, message string) *Response {
 	response := NewResponse(request)
 	response.SetStatus(code, message)
 	return response
@@ -123,9 +120,8 @@ type Connection interface {
 	Write(*Response) (int, error)
 }
 
-
 type RouteMatcher interface {
-    // A controller matches the given method, path
+	// A controller matches the given method, path
 	Match(string, string) Controller
 	// Registers a controller for the specified methods 
 	Register([]string, Controller)
