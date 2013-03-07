@@ -45,7 +45,7 @@ func (this *DynMap) GetInt64(key string) (int64, bool) {
 	return -1, false
 }
 
-func (this *DynMap) GetIntOrDefault(key string, def int) int {
+func (this *DynMap) MustInt(key string, def int) int {
 	v, ok := this.GetInt(key)
 	if ok {
 		return v
@@ -100,6 +100,72 @@ func (this *DynMap) GetTimeOrDefault(key string, def time.Time) (time.Time) {
 		return def
 	}
 	return tmp
+}
+
+//Gets a dynmap from the requested.
+// This will update the value in the map if the 
+// value was not already a dynmap.
+func (this *DynMap) DynMap(key string) (*DynMap, bool) {
+	tmp, ok := this.Get(key)
+	if !ok {
+		return nil, ok
+	}
+	mp, ok := ToDynMap(tmp)
+	return mp, ok
+}
+
+func (this *DynMap) MustDynMap(key string, def *DynMap) *DynMap {
+	tmp, ok := this.DynMap(key)
+	if !ok {
+		return def
+	}
+	return tmp
+}
+
+// gets a slice of dynmaps
+func (this *DynMap) GetDynMapSlice(key string) ([]*DynMap, bool) {
+	lst, ok := this.Get(key)
+	if !ok {
+		return nil, false
+	}
+	switch v := lst.(type) {
+	case []*DynMap :
+		return v, true
+	case []interface{} :
+		retlist := make([]*DynMap, 0)
+		for _,tmp := range(v) {
+			in, ok := ToDynMap(tmp)
+			if !ok {
+				return nil, false
+			}
+			retlist = append(retlist, in)
+		}
+		return retlist, true
+	}
+	return nil, false
+}
+
+//Returns a slice of ints
+func (this *DynMap) GetIntSlice(key string) ([]int, bool) {
+	lst, ok := this.Get(key)
+	if !ok {
+		return nil, false
+	}
+	switch v := lst.(type) {
+	case []int :
+		return v, true
+	case []interface{} :
+		retlist := make([]int, 0)
+		for _,tmp := range(v) {
+			in, err := ToInt(tmp)
+			if err != nil {
+				return nil, false
+			}
+			retlist = append(retlist, in)
+		}
+		return retlist, true
+	}
+	return nil, false
 }
 
 // Adds the item to a slice

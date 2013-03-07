@@ -20,6 +20,12 @@ func ToTime(value interface{}) (tm time.Time, err error) {
 	return time.Now(), fmt.Errorf("Unable to parse (%s) into a time", value)
 }
 
+func ToInt(value interface{}) (int, error) {
+	i, err := ToInt64(value)
+	return int(i), err
+}
+
+
 func ToInt64(value interface{}) (i int64, err error) {
 	switch v := value.(type) {
 	case string:
