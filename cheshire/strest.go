@@ -36,6 +36,10 @@ func NewRequest(uri, method string) *Request {
 	return request
 }
 
+func (this *Request) Params() *dynmap.DynMap {
+	return this.Strest.Params
+}
+
 //return the txnid.
 func (this *Request) TxnId() string {
 	return this.Strest.Txn.Id
@@ -81,7 +85,7 @@ func (this *Response) SetStatus(code int, message string) {
 }
 
 func (this *Response) StatusCode() int {
-	return this.GetIntOrDefault("status.code", 200)
+	return this.MustInt("status.code", 200)
 }
 
 func (this *Response) SetStatusCode(code int) {
