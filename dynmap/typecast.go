@@ -67,6 +67,25 @@ func ToString(value interface{}) string {
 	return fmt.Sprint(value)
 }
 
+//Returns true if the given value is 
+// a map, dynmap, DynMaper or pointer of one of those types
+func DynMapConvertable(value interface{}) bool {
+	switch value.(type) {
+	case DynMaper:
+		return true
+	case map[string]interface{}:
+		return true
+	case *map[string]interface{}:
+		return true
+	case DynMap:
+		return true
+	case *DynMap:
+		return true
+	}
+	return false
+
+}
+
 func ToDynMap(value interface{}) (*DynMap, bool) {
 	switch v := value.(type) {
 	case DynMaper:

@@ -6,7 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"time"
-	// "fmt"
+	"fmt"
+	"net/url"
 )
 
 //Dont make this a map type, since we want the option of 
@@ -21,6 +22,44 @@ type DynMaper interface {
 
 func NewDynMap() *DynMap {
 	return &DynMap{make(map[string]interface{})}
+}
+
+//encodes this map into a url encoded string.
+//maps are encoded in the rails style (key[key2][key2]=value)
+func (this *DynMap) URLEncode() (string, error) {
+	vals := &url.Values{}	
+	for key,value := range(this.Map) {
+		err := this.urlEncode(vals, key, value)
+		if err != nil {
+			return "", err
+		}
+	}
+	return vals.Encode(), nil
+}
+
+//adds the requested value to the Values
+func (this *DynMap) urlEncode(vals *url.Values, key string, value interface{}) error{
+	
+	if DynMapConvertable(value) {
+		mp, ok := ToDynMap(value)
+		if !ok {
+			return fmt.Errorf("Unable to convert %s", mp)
+		}	
+		for k,v := range(mp.Map) {
+			//encode in rails style key[key2]=value
+			this.urlEncode(vals, fmt.Sprintf("%s[%s]",key,k), v)
+		}
+		return nil
+	}
+	switch v := value.(type) {
+		case []interface{} :
+			for _,tmp := range(v) {
+				this.urlEncode(vals, key, tmp)
+			}
+			return nil
+	}
+	vals.Add(key, ToString(value))
+	return nil
 }
 
 func (this *DynMap) MarshalJSON() ([]byte, error) {

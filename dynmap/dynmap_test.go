@@ -20,5 +20,16 @@ func TestJsonMarshal(t *testing.T) {
     if string(unbytes) != string(bytes) {
         log.Println("ERROR")
     }
-
 }
+
+func TestURLEncode(t *testing.T) {
+    mp := NewDynMap()
+    mp.PutWithDot("this.that.test", 80)
+    mp.PutWithDot("this.eight", 8)
+    url, err := mp.URLEncode()
+    if err != nil {
+        log.Println(err)
+    }
+    log.Printf("Got URL : %s", url)
+}
+
