@@ -15,7 +15,7 @@ type Request struct {
 		Version float32        `json:"v"`
 		Method  string         `json:"method"`
 		Uri     string         `json:"uri"`
-		Params  *dynmap.DynMap `json:"-"`
+		Params  *dynmap.DynMap `json:"params"`
 
 		Txn struct {
 			Id     string `json:"id"`
@@ -34,6 +34,14 @@ func NewRequest(uri, method string) *Request {
 	request.Strest.Method = method
 	request.SetTxnAccept("single")
 	return request
+}
+
+func (this *Request) Method() string {
+	return this.Strest.Method
+}
+
+func (this *Request) Uri() string {
+	return this.Strest.Uri
 }
 
 func (this *Request) Params() *dynmap.DynMap {
