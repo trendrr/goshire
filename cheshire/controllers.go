@@ -12,7 +12,7 @@ type HtmlConnection struct {
 }
 
 func (this *HtmlConnection) Render(path string, context map[string]interface{}) {
-	viewsPath := this.ServerConfig.GetStringOrDefault("http.html.view_directory", "")
+	viewsPath := this.ServerConfig.MustString("http.html.view_directory", "")
 	templatePath := fmt.Sprintf("%s%s", viewsPath, path)
 	this.WriteResponse("text/html", mustache.RenderFile(templatePath, context))
 }
@@ -56,12 +56,12 @@ func (this *HtmlController) Config() *ControllerConfig {
 }
 
 func (this *HtmlController) HandleRequest(request *Request, conn Connection) {
-	handler := this.Handlers[request.Strest.Method]
+	handler := this.Handlers[request.Method()]
 	if handler == nil {
 		handler = this.Handlers["ALL"]
 	}
 	if handler == nil {
-		log.Println("Error, not found ", request.Strest.Uri)
+		log.Println("Error, not found ", request.Uri())
 		//not found!
 		//TODO: send 404 page.
 		return

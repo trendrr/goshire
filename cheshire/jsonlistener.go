@@ -67,7 +67,7 @@ func handleConnection(conn JsonConnection) {
 			break
 		}
 		//request
-		controller := conn.serverConfig.Router.Match(req.Strest.Method, req.Strest.Uri)
+		controller := conn.serverConfig.Router.Match(req.Method(), req.Uri())
 		go controller.HandleRequest(&req, conn)
 	}
 

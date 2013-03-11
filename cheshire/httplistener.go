@@ -70,23 +70,23 @@ func (this *httpHandler) ServeHTTP(writer http.ResponseWriter, req *http.Request
 
 func ToStrestRequest(req *http.Request) *Request {
 	var request = new(Request)
-	request.Strest.Uri = req.URL.Path
-	request.Strest.Method = req.Method
-	request.Strest.Txn.Id = req.Header.Get("Strest-Txn-Id")
-	request.Strest.Txn.Accept = req.Header.Get("Strest-Txn-Accept")
-	if len(request.Strest.Txn.Accept) == 0 {
-		request.Strest.Txn.Accept = "single"
+	request.SetUri(req.URL.Path)
+	request.SetMethod(req.Method)
+	request.SetTxnId(req.Header.Get("Strest-Txn-Id"))
+	request.SetTxnAccept(req.Header.Get("Strest-Txn-Accept"))
+	if len(request.TxnAccept()) == 0 {
+		request.SetTxnAccept("single")
 	}
 
 	if req.Method == "POST" || req.Method == "PUT" {
 		req.ParseForm()
 		pms, _ := dynmap.ToDynMap(parseValues(req.Form))
-		request.Strest.Params = pms
+		request.SetParams(pms)
 	} else {
 		//parse the query params
 		values := req.URL.Query()
 		pms, _ := dynmap.ToDynMap(parseValues(values))
-		request.Strest.Params = pms
+		request.SetParams(pms)
 	}
 	return request
 }

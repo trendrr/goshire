@@ -45,7 +45,7 @@ func (h *DefaultNotFoundHandler) Config() *ControllerConfig {
 	return nil
 }
 func (h *DefaultNotFoundHandler) HandleRequest(req *Request, conn Connection) {
-	response := NewResponse(req)
+	response := req.NewResponse()
 	response.SetStatusCode(404)
 	response.SetStatusMessage("Not Found")
 	conn.Write(response)

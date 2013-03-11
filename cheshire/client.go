@@ -11,6 +11,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"net/http"
+	"strings"
 )
 
 var strestId int64 = int64(0)
@@ -21,7 +23,73 @@ func NewTxnId() string {
 	return fmt.Sprintf("go%d", id)
 }
 
-type Client struct {
+
+type Client interface {
+	// Does a synchronous api call.  times out after the requested timeout.
+	// This will automatically set the txn accept to single
+	ApiCallSync(req *Request, timeout time.Duration) (*Response, error)
+	// Does an api call.
+	ApiCall(req *Request, responseChan chan *Response, errorChan chan error)
+}
+
+type HttpClient struct {
+	Address string
+}
+
+func (this *HttpClient) ApiCallSync(req *Request, timeout time.Duration) (*Response, error) {
+	
+	uri := req.Uri() 
+	pms, err := req.Params().MarshalURL()
+	if err != nil {
+		return nil, err
+	}
+	body := strings.NewReader("")
+
+	if req.Method() == "GET" {
+		joiner := "&"
+		//add params to the uri
+		if !strings.Contains(uri, "?") {
+			joiner = "?"
+		}
+		uri = fmt.Sprintf("%s%s%s", uri, joiner, pms)
+	} else {
+		body = strings.NewReader(pms)
+	}
+
+	//convert to an http.Request
+	request, err := http.NewRequest(req.Method(), uri, body)
+	if err != nil {
+		return nil, err
+	}
+
+	res, err := http.DefaultClient.Do(request)
+
+	if err != nil {
+		return nil, err
+	}
+	log.Println(res)
+
+	//convert to a strest response
+	var response = &Response{*dynmap.NewDynMap()}
+
+
+	// if req.Method == "POST" || req.Method == "PUT" {
+	// 	req.ParseForm()
+	// 	pms, _ := dynmap.ToDynMap(parseValues(req.Form))
+	// 	request.Strest.Params = pms
+	// } else {
+	// 	//parse the query params
+	// 	values := req.URL.Query()
+	// 	pms, _ := dynmap.ToDynMap(parseValues(values))
+	// 	request.Strest.Params = pms
+	// }
+	return response, nil
+
+
+}
+
+
+type JsonClient struct {
 	Host     string
 	Port     int
 	PingUri  string
@@ -34,8 +102,8 @@ type Client struct {
 }
 
 //Creates a connects 
-func NewClient(host string, port int) (*Client, error) {
-	client := &Client{
+func NewJsonClient(host string, port int) (*JsonClient, error) {
+	client := &JsonClient{
 		Host:           host,
 		Port:           port,
 		isClosed:       false,
@@ -54,12 +122,12 @@ func NewClient(host string, port int) (*Client, error) {
 }
 
 //Close this client.
-func (this *Client) Close() {
+func (this *JsonClient) Close() {
     this.exitChan <- 1
     log.Println("Send exit message")
 }
 
-func (this *Client) createConn() (*cheshireConn, error) {
+func (this *JsonClient) createConn() (*cheshireConn, error) {
 	defer this.connectLock.Unlock()
 	this.connectLock.Lock()
 	c, err := newCheshireConn(fmt.Sprintf("%s:%d", this.Host, this.Port), this.disconnectChan, 20*time.Second)
@@ -74,7 +142,7 @@ func (this *Client) createConn() (*cheshireConn, error) {
 //returns the connection.  
 // use this rather then access directly from the struct, will
 // make it easier to pool connections if we need.
-func (this *Client) connection() (*cheshireConn, error) {
+func (this *JsonClient) connection() (*cheshireConn, error) {
 	defer this.connectLock.RUnlock()
 	this.connectLock.RLock()
 
@@ -85,7 +153,7 @@ func (this *Client) connection() (*cheshireConn, error) {
 }
 
 //Attempt to close this connection and make a new connection.
-func (this *Client) reconnect(oldconn *cheshireConn) (*cheshireConn, error) {
+func (this *JsonClient) reconnect(oldconn *cheshireConn) (*cheshireConn, error) {
 	if this.conn != oldconn {
 		log.Println("Error oldconn is not contained in client for reconnect (%s)", oldconn)
 	}
@@ -114,7 +182,7 @@ func (this *Client) reconnect(oldconn *cheshireConn) (*cheshireConn, error) {
 	return con, err
 }
 
-func (this *Client) eventLoop() {
+func (this *JsonClient) eventLoop() {
 	//client event loop pings, and listens for client disconnects.
 	c := time.Tick(5 * time.Second)
 	defer log.Println("CLOSED!!!!!!!!")
@@ -151,18 +219,18 @@ func (this *Client) eventLoop() {
 
 // Does a synchronous api call.  times out after the requested timeout.
 // This will automatically set the txn accept to single
-func (this *Client) ApiCallSync(req *Request, timeout time.Duration) (*Response, error) {
+func (this *JsonClient) ApiCallSync(req *Request, timeout time.Duration) (*Response, error) {
     req.SetTxnAccept("single")
 	response, _, err := this.doApiCallSync(req, timeout)
 	return response, err
 }
 
 // Does an api call.
-func (this *Client) ApiCall(req *Request, responseChan chan *Response, errorChan chan error) {
+func (this *JsonClient) ApiCall(req *Request, responseChan chan *Response, errorChan chan error) {
 	this.doApiCall(req, responseChan, errorChan)
 }
 
-func (this *Client) doApiCallSync(req *Request, timeout time.Duration) (*Response, *cheshireConn, error) {
+func (this *JsonClient) doApiCallSync(req *Request, timeout time.Duration) (*Response, *cheshireConn, error) {
 
 	log.Println("Do api sync")
 	defer log.Println("DONE api sync")
@@ -183,7 +251,7 @@ func (this *Client) doApiCallSync(req *Request, timeout time.Duration) (*Respons
 }
 
 //does the actual call, returning the connection and the internal request
-func (this *Client) doApiCall(req *Request, responseChan chan *Response, errorChan chan error) (*cheshireConn, *cheshireRequest) {
+func (this *JsonClient) doApiCall(req *Request, responseChan chan *Response, errorChan chan error) (*cheshireConn, *cheshireRequest) {
 	if req.TxnId() == "" {
 		req.SetTxnId(NewTxnId())
 	}

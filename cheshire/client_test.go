@@ -7,7 +7,7 @@ import (
 )
 
 func TestClose(t *testing.T) {
-    client, err := NewClient("localhost", 8009)
+    client, err := NewJsonClient("localhost", 8009)
     if err != nil {
         log.Println(err)
         return

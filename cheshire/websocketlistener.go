@@ -77,8 +77,8 @@ func (wc WebsocketController) HandleWCConnection(ws *websocket.Conn) {
 			break
 		}
 		log.Print(req)
-		log.Print(req.Strest.Uri)
-		controller := wc.serverConfig.Router.Match(req.Strest.Method, req.Strest.Uri)
+		log.Print(req.Uri())
+		controller := wc.serverConfig.Router.Match(req.Method(), req.Uri())
 
 		log.Print("GOT CONTROLLER ")
 		log.Print(controller)

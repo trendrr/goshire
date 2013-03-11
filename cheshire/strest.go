@@ -11,59 +11,94 @@ const StrestVersion = float32(2)
 // Standard STREST request.
 // See protocol spec https://github.com/trendrr/strest-server/wiki/STREST-Protocol-Spec
 type Request struct {
-	Strest struct {
-		Version float32        `json:"v"`
-		Method  string         `json:"method"`
-		Uri     string         `json:"uri"`
-		Params  *dynmap.DynMap `json:"params"`
+	dynmap.DynMap
 
-		Txn struct {
-			Id     string `json:"id"`
-			Accept string `json:"accept"`
-		} `json:"txn"`
-	} `json:"strest"`
+	// Strest struct {
+	// 	Version float32        `json:"v"`
+	// 	Method  string         `json:"method"`
+	// 	Uri     string         `json:"uri"`
+	// 	Params  *dynmap.DynMap `json:"params"`
+
+	// 	Txn struct {
+	// 		Id     string `json:"id"`
+	// 		Accept string `json:"accept"`
+	// 	} `json:"txn"`
+	// } `json:"strest"`
 }
 
 // Create a new request object.
 // Values are all set to defaults
 func NewRequest(uri, method string) *Request {
-	request := &Request{}
-	request.Strest.Params = dynmap.NewDynMap()
-	request.Strest.Version = StrestVersion
-	request.Strest.Uri = uri
-	request.Strest.Method = method
-	request.SetTxnAccept("single")
+	request := &Request{*dynmap.NewDynMap()}
+	request.PutWithDot("strest.params", dynmap.NewDynMap())
+	request.PutWithDot("strest.v", StrestVersion)
+	request.PutWithDot("strest.uri", uri)
+	request.PutWithDot("strest.method", method)
+	request.PutWithDot("strest.txn.accept", "single")
 	return request
 }
 
+
+func (this *Request) ToDynMap() *dynmap.DynMap {
+	return &this.DynMap
+}
+
+
 func (this *Request) Method() string {
-	return this.Strest.Method
+	return this.MustString("strest.method", "")
+}
+
+func (this *Request) SetMethod(method string) {
+	this.PutWithDot("strest.method", method)
 }
 
 func (this *Request) Uri() string {
-	return this.Strest.Uri
+	return this.MustString("strest.uri", "")
+}
+
+func (this *Request) SetUri(uri string) {
+	this.PutWithDot("strest.uri", uri)
 }
 
 func (this *Request) Params() *dynmap.DynMap {
-	return this.Strest.Params
+	m, ok := this.DynMap.DynMap("strest.params")
+	if !ok {
+		this.PutIfAbsentWithDot("strest.params", dynmap.NewDynMap())
+		m, ok = this.DynMap.DynMap("strest.params")
+	}
+	return m
+}
+
+func (this *Request) SetParams(params *dynmap.DynMap) {
+	this.PutWithDot("strest.params", params)
 }
 
 //return the txnid.
 func (this *Request) TxnId() string {
-	return this.Strest.Txn.Id
+	return this.MustString("strest.txn.id", "")
 }
 
 func (this *Request) SetTxnId(id string) {
-	this.Strest.Txn.Id = id
+	this.PutWithDot("strest.txn.id", id)
 }
 
 func (this *Request) TxnAccept() string {
-	return this.Strest.Txn.Accept
+	return this.MustString("strest.txn.accept", "single")
 }
 
 func (this *Request) SetTxnAccept(accept string) {
-	this.Strest.Txn.Accept = accept
+	this.PutWithDot("strest.txn.accept", accept)
 }
+
+// Creates a new response based on this request.
+// auto fills the txn id
+func (this *Request) NewResponse() *Response {
+	response := NewResponse()
+	response.SetTxnId(this.TxnId())
+	return response
+}
+
+
 
 // Standard STREST response
 // See protocol spec https://github.com/trendrr/strest-server/wiki/STREST-Protocol-Spec
@@ -72,7 +107,7 @@ type Response struct {
 }
 
 func (this *Response) TxnId() string {
-	return this.GetStringOrDefault("strest.txn.id", "")
+	return this.MustString("strest.txn.id", "")
 }
 
 func (this *Response) SetTxnId(id string) {
@@ -80,7 +115,7 @@ func (this *Response) SetTxnId(id string) {
 }
 
 func (this *Response) TxnStatus() string {
-	return this.GetStringOrDefault("strest.txn.status", "")
+	return this.MustString("strest.txn.status", "")
 }
 
 func (this *Response) SetTxnStatus(status string) {
@@ -101,27 +136,30 @@ func (this *Response) SetStatusCode(code int) {
 }
 
 func (this *Response) StatusMessage() string {
-	return this.GetStringOrDefault("status.message", "")
+	return this.MustString("status.message", "")
 }
 
 func (this *Response) SetStatusMessage(message string) {
 	this.PutWithDot("status.message", message)
 }
 
+func (this *Response) ToDynMap() *dynmap.DynMap {
+	return &this.DynMap
+}
+
 // Create a new response object.
 // Values are all set to defaults
-func NewResponse(request *Request) *Response {
+func NewResponse() *Response {
 	response := &Response{*dynmap.NewDynMap()}
 	response.SetStatusMessage("OK")
 	response.SetStatusCode(200)
 	response.SetTxnStatus("completed")
-	response.SetTxnId(request.Strest.Txn.Id)
 	response.PutWithDot("strest.v", StrestVersion)
 	return response
 }
 
 func NewErrorResponse(request *Request, code int, message string) *Response {
-	response := NewResponse(request)
+	response := request.NewResponse()
 	response.SetStatus(code, message)
 	return response
 }
@@ -179,7 +217,7 @@ func (this *DefaultController) Config() *ControllerConfig {
 	return this.Conf
 }
 func (this *DefaultController) HandleRequest(request *Request, conn Connection) {
-	handler := this.Handlers[request.Strest.Method]
+	handler := this.Handlers[request.Method()]
 	if handler == nil {
 		handler = this.Handlers["ALL"]
 	}
