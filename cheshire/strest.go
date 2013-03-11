@@ -124,6 +124,7 @@ func (this *Response) TxnStatus() string {
 	return this.MustString("strest.txn.status", "")
 }
 
+// complete or continue
 func (this *Response) SetTxnStatus(status string) {
 	this.PutWithDot("strest.txn.status", status)
 }
