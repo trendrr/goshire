@@ -99,6 +99,12 @@ func (this *Request) NewResponse() *Response {
 }
 
 
+func (this *Request) NewError(code int, message string) *Response {
+	response := this.NewResponse()
+	response.SetStatus(code, message)
+	return response
+}
+
 
 // Standard STREST response
 // See protocol spec https://github.com/trendrr/strest-server/wiki/STREST-Protocol-Spec
@@ -158,11 +164,6 @@ func NewResponse() *Response {
 	return response
 }
 
-func NewErrorResponse(request *Request, code int, message string) *Response {
-	response := request.NewResponse()
-	response.SetStatus(code, message)
-	return response
-}
 
 type Connection interface {
 	//writes the response to the underlying channel 
