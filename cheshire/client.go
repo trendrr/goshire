@@ -31,6 +31,9 @@ type Client interface {
 	ApiCallSync(req *Request, timeout time.Duration) (*Response, error)
 	// Does an api call.
 	ApiCall(req *Request, responseChan chan *Response, errorChan chan error)
+
+	//Closes this client
+	Close()
 }
 
 type HttpClient struct {
@@ -43,8 +46,13 @@ func NewHttpClient(address string) *HttpClient{
 	}
 }
 
+func (this *HttpClient) Close() {
+	//do nothing..
+}
+
 func (this *HttpClient) ApiCall(req *Request, responseChan chan *Response, errorChan chan error) {
 	go func() {
+		//TODO we could do something that allows streaming http
 		res, err := this.ApiCallSync(req, 4*60*time.Second)
 		if err != nil {
 			errorChan <- err
@@ -95,18 +103,6 @@ func (this *HttpClient) ApiCallSync(req *Request, timeout time.Duration) (*Respo
 	if err != nil {
 		return nil, err
 	}
-
-	
-	// if req.Method == "POST" || req.Method == "PUT" {
-	// 	req.ParseForm()
-	// 	pms, _ := dynmap.ToDynMap(parseValues(req.Form))
-	// 	request.Strest.Params = pms
-	// } else {
-	// 	//parse the query params
-	// 	values := req.URL.Query()
-	// 	pms, _ := dynmap.ToDynMap(parseValues(values))
-	// 	request.Strest.Params = pms
-	// }
 	return response, nil
 }
 
