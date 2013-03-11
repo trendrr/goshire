@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/trendrr/cheshire-golang/dynmap"
 	"io"
+	"io/ioutil"
 	"log"
 	"net"
 	"sync"
@@ -36,14 +37,30 @@ type HttpClient struct {
 	Address string
 }
 
+func NewHttpClient(address string) *HttpClient{
+	return &HttpClient{
+		Address: address,
+	}
+}
+
+func (this *HttpClient) ApiCall(req *Request, responseChan chan *Response, errorChan chan error) {
+	go func() {
+		res, err := this.ApiCallSync(req, 4*60*time.Second)
+		if err != nil {
+			errorChan <- err
+		} else {
+			responseChan <- res
+		}
+		}()
+}
+
 func (this *HttpClient) ApiCallSync(req *Request, timeout time.Duration) (*Response, error) {
-	
 	uri := req.Uri() 
 	pms, err := req.Params().MarshalURL()
 	if err != nil {
 		return nil, err
 	}
-	body := strings.NewReader("")
+	reqBody := strings.NewReader("")
 
 	if req.Method() == "GET" {
 		joiner := "&"
@@ -53,26 +70,33 @@ func (this *HttpClient) ApiCallSync(req *Request, timeout time.Duration) (*Respo
 		}
 		uri = fmt.Sprintf("%s%s%s", uri, joiner, pms)
 	} else {
-		body = strings.NewReader(pms)
+		reqBody = strings.NewReader(pms)
 	}
-
+	url := fmt.Sprintf("http://%s%s", this.Address, uri)
 	//convert to an http.Request
-	request, err := http.NewRequest(req.Method(), uri, body)
+	request, err := http.NewRequest(req.Method(), url, reqBody)
 	if err != nil {
 		return nil, err
 	}
-
 	res, err := http.DefaultClient.Do(request)
 
 	if err != nil {
 		return nil, err
 	}
-	log.Println(res)
+	defer res.Body.Close()
+	body, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		return nil, err
+	}
 
-	//convert to a strest response
+	//convert to a strest response2
 	var response = &Response{*dynmap.NewDynMap()}
+	err = response.UnmarshalJSON(body)
+	if err != nil {
+		return nil, err
+	}
 
-
+	
 	// if req.Method == "POST" || req.Method == "PUT" {
 	// 	req.ParseForm()
 	// 	pms, _ := dynmap.ToDynMap(parseValues(req.Form))
@@ -84,8 +108,6 @@ func (this *HttpClient) ApiCallSync(req *Request, timeout time.Duration) (*Respo
 	// 	request.Strest.Params = pms
 	// }
 	return response, nil
-
-
 }
 
 
