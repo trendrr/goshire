@@ -26,7 +26,9 @@ func NewDynMap() *DynMap {
 
 //encodes this map into a url encoded string.
 //maps are encoded in the rails style (key[key2][key2]=value)
-func (this *DynMap) URLEncode() (string, error) {
+// TODO: we should sort the keynames so ordering is consistent and then this
+// can be used a cache key
+func (this *DynMap) MarshalURL() (string, error) {
 	vals := &url.Values{}	
 	for key,value := range(this.Map) {
 		err := this.urlEncode(vals, key, value)
@@ -35,6 +37,28 @@ func (this *DynMap) URLEncode() (string, error) {
 		}
 	}
 	return vals.Encode(), nil
+}
+
+// Unmarshals a url encoded string.
+// will also parse rails style maps in the form key[key1][key2]=val\
+func (this *DynMap) UnmarshalURL(urlstring string) error {
+	//TODO: split on ?
+	values, err := url.ParseQuery(urlstring)
+	if err != nil {
+		return err
+	}
+	for k := range values {
+		var v = values[k]
+		key := strings.Replace(k, "[", ".", -1)
+		key = strings.Replace(key, "]", "", -1)
+
+		if len(v) == 1 {
+			this.PutWithDot(key, v[0])
+		} else {
+			this.PutWithDot(key, v)
+		}
+	}
+	return nil
 }
 
 //adds the requested value to the Values
@@ -113,7 +137,7 @@ func (this *DynMap) GetString(key string) (string, bool) {
 
 // gets a string. if string is not available in the map, then the default
 //is returned
-func (this *DynMap) GetStringOrDefault(key string, def string) string {
+func (this *DynMap) MustString(key string, def string) string {
 	tmp, ok := this.GetString(key)
 	if !ok {
 		return def
