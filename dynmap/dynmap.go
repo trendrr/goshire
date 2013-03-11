@@ -165,6 +165,26 @@ func (this *DynMap) GetTimeOrDefault(key string, def time.Time) (time.Time) {
 	return tmp
 }
 
+func (this *DynMap) Bool(key string) (bool, bool) {
+	tmp, ok := this.Get(key)
+	if !ok {
+		return false, ok
+	}
+	b, err := ToBool(tmp)
+	if err != nil {
+		return false, false
+	}
+	return b, true
+}
+
+func (this *DynMap) MustBool(key string, def bool) (bool) {
+	tmp, ok := this.Bool(key)
+	if !ok {
+		return def
+	}
+	return tmp
+}
+
 //Gets a dynmap from the requested.
 // This will update the value in the map if the 
 // value was not already a dynmap.

@@ -5,6 +5,7 @@ import (
 	"log"
 	"strconv"
 	"time"
+	"strings"
 )
 
 //parse time
@@ -18,6 +19,23 @@ func ToTime(value interface{}) (tm time.Time, err error) {
 		return time.Now(), err
 	}
 	return time.Now(), fmt.Errorf("Unable to parse (%s) into a time", value)
+}
+
+func ToBool(value interface{}) (bool, error) {
+	switch v := value.(type) {
+	case bool:
+		return v, nil
+	case string:
+		tmp := strings.ToLower(v)
+		if tmp == "true" || tmp == "t" || tmp == "yes" || tmp == "y" || tmp == "on" {
+			return true, nil
+		}
+
+		if tmp == "false" || tmp == "f" || tmp == "no" || tmp == "n" || tmp == "off" {
+			return false, nil
+		}	
+	}
+	return false, fmt.Errorf("Unable to convert to bool (%s)", value)	
 }
 
 func ToInt(value interface{}) (int, error) {
