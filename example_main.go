@@ -11,9 +11,10 @@ func main() {
     log.Println("HERE:1")
     //a ping controller api controller.  
     pinger := func(request *cheshire.Request,conn cheshire.Connection) {
-        log.Println(request.Strest.Params)
-        response := cheshire.NewResponse(request)
+        // log.Printf("PING! %s", request.Strest.Params)
+        response := request.NewResponse()
         response.Put("data", "PONG")
+        // log.Printf("Sending REsponse: %s", response.TxnId())
         conn.Write(response)
     }
     //now register the api call
