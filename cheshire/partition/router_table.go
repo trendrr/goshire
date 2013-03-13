@@ -3,12 +3,7 @@ package partition
 import (
     // "time"
     "github.com/trendrr/cheshire-golang/dynmap"
-    "github.com/trendrr/cheshire-golang/cheshire"
     "fmt"
-    "sync"
-    "io/ioutil"
-    "os"
-    "log"
 )
 
 
@@ -112,12 +107,12 @@ func ToRouterTable(mp *dynmap.DynMap) (*RouterTable, error) {
 
     t.DynMap = t.ToDynMap()
 
-    t.EntriesPartition := make([][]*RouterEntry, t.TotalPartitions)
+    t.EntriesPartition = make([][]*RouterEntry, t.TotalPartitions)
     //Now setup the replication partitions. 
     for _, e := range(t.Entries) {
         
         for _,p := range(e.Partitions) {
-            pRep, err := this.repPartitions(p)
+            pRep, err := t.repPartitions(p)
             if err != nil {
                 return nil, fmt.Errorf("Bad table (%s)", err)
             }
@@ -125,7 +120,7 @@ func ToRouterTable(mp *dynmap.DynMap) (*RouterTable, error) {
             entries[0] = e
             for i :=1; i < len(entries); i++ {
                 entries[i] = entriesPartition[pRep[i-1]]
-                e.PartitionsMap[pRep] = false
+                e.PartitionsMap[pRep[i-1]] = false
             }
             t.EntriesPartition[p] = entries
         }
@@ -171,11 +166,13 @@ func (this *RouterTable) repPartitions(partition int) ([]int, error){
         return entries, fmt.Errorf("Requested partition %d is out of bounds (%d) ", partition, this.TotalPartitions )
     }
 
-    for i := 1; i < this.NumPartitions; i++ {
-        par := (i+partition) % this.NumPartitions
+    for i := 1; i < this.TotalPartitions; i++ {
+        par := (i+partition) % this.TotalPartitions
 
-        entry = this.EntriesPartition[partition]
-        v, ok := entry.PartitionsMap[par]
+        entry := this.EntriesPartition[partition]
+
+
+        v, ok := entry[0].PartitionsMap[par]
         if ok && v {
             //this is master.  skip to next one
             continue
@@ -194,9 +191,9 @@ func (this *RouterTable) repPartitions(partition int) ([]int, error){
 // Gets the entries associated with the given partition
 // [0] should be the master entry, and there should be 
 // table.ReplicationFactor number of entries
-func (this *RouterTable) Entries(partition int) ([]*RouterEntry, error) {
+func (this *RouterTable) PartitionEntries(partition int) ([]*RouterEntry, error) {
     if partition >= this.TotalPartitions {
-        return make([]*RouterEntry), fmt.Errorf("Requested partition %d is out of bounds (%d) ", partition, this.TotalPartitions )
+        return make([]*RouterEntry, 0), fmt.Errorf("Requested partition %d is out of bounds (%d) ", partition, this.TotalPartitions )
     }
     return this.EntriesPartition[partition], nil
 }
@@ -225,7 +222,7 @@ type RouterEntry struct {
 func ToRouterEntry(mp *dynmap.DynMap) (*RouterEntry, error) {
     e := &RouterEntry{
         Self : false,
-        PartitionsMap : make(map[int]bool)
+        PartitionsMap : make(map[int]bool),
     }
     var ok bool
     e.Address, ok = mp.GetString("address")

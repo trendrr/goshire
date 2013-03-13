@@ -9,6 +9,8 @@ import (
     "io/ioutil"
     "os"
     "log"
+    "time"
+
 )
 
 
@@ -30,7 +32,7 @@ type Manager struct {
 func NewManagerSeed(serviceName, dataDir, myEntryId string, seedHttpUrls []string) (*Manager, error) {
     manager := NewManager(serviceName, dataDir, myEntryId)
     var err error
-    for url := range(seedHttpUrls) {
+    for _,url := range(seedHttpUrls) {
 
         client := cheshire.NewHttpClient(url)
         tble, err := manager.RequestRouterTable(client)
@@ -69,49 +71,56 @@ func NewManager(serviceName, dataDir, myEntryId string) *Manager {
 }
 
 // Puts a lock on the specified partition (locally only)
-func (this *Manager) PartitionLock(int partition) error {
+func (this *Manager) PartitionLock(partition int) error {
     this.lock.Lock()
     defer this.lock.Unlock()
-    this.partionLocks[partition] = true
+    this.lockedPartitions[partition] = true
     return nil
 }
 
 // Locks all remote.
-func (this *Manager) PartitionLockRemote(int partition) error {
+func (this *Manager) PartitionLockRemote(partition int) error {
     clients, err := this.Clients(partition)
     if err != nil {
         return err
     }
-    for _, c := clients {
+    for _,c := range(clients) {
         req := cheshire.NewRequest("/chs/lock", "POST")
         req.Params().Put("partitions", partition)
+
+
         res, err := c.ApiCallSync(req, time.Second*10)
+    
         if err != nil {
             //retry once
             res, err = c.ApiCallSync(req, time.Second*10)
             if err != nil {
                 log.Printf("Error locking remote: %s", err)    
+            } else if res.StatusCode() != 200 {
+                log.Printf("Error lock %s", res)
             }
+        } else if res.StatusCode() != 200 {
+            log.Printf("Error lock %s", res)
         }
     }
     //TODO: fail if all locks fail
     return nil
 }
 
-func (this *Manager) PartitionUnlock(int partition) error {
+func (this *Manager) PartitionUnlock(partition int) error {
     this.lock.Lock()
     defer this.lock.Unlock()
-    delete(this.partionLocks, partition)
+    delete(this.lockedPartitions, partition)
     return nil 
 }
 
 
-func (this *Manager) PartitionUnlockRemote(int partition) error {
+func (this *Manager) PartitionUnlockRemote(partition int) error {
     clients, err := this.Clients(partition)
     if err != nil {
         return err
     }
-    for _, c := clients {
+    for _,c := range(clients) {
         req := cheshire.NewRequest("/chs/unlock", "POST")
         req.Params().Put("partitions", partition)
         res, err := c.ApiCallSync(req, time.Second*10)
@@ -120,7 +129,11 @@ func (this *Manager) PartitionUnlockRemote(int partition) error {
             res, err = c.ApiCallSync(req, time.Second*10)
             if err != nil {
                 log.Printf("Error locking remote: %s", err)    
+            } else if res.StatusCode() != 200 {
+                log.Printf("Error lock %s", res)
             }
+        } else if res.StatusCode() != 200 {
+            log.Printf("Error lock %s", res)
         }
     }
     //TODO: fail if all locks fail
@@ -132,14 +145,14 @@ func (this *Manager) PartitionUnlockRemote(int partition) error {
 func (this *Manager) MyPartitions() map[int]bool {
     this.lock.RLock()
     defer this.lock.RUnlock()
-    if table == nil {
+    if this.table == nil {
         return make(map[int]bool, 0)
     }
-    me := table.MyEntry
+    me := this.table.MyEntry
     if me == nil {
         return make(map[int]bool, 0)   
     }
-    return me.PartionsMap
+    return me.PartitionsMap
 }
 
 // Checks if this partition is my responsibility.
@@ -147,7 +160,7 @@ func (this *Manager) MyPartitions() map[int]bool {
 //
 // returns responsibility, locked
 // 
-func (this *Manager) MyResponsibility(int partition) (bool, bool) {
+func (this *Manager) MyResponsibility(partition int) (bool, bool) {
     this.lock.RLock()
     defer this.lock.RUnlock()
 
@@ -190,14 +203,14 @@ func (this *Manager) RequestRouterTable(client cheshire.Client) (*RouterTable, e
         return nil, fmt.Errorf("Error from server %d %s", response.StatusCode(), response.StatusMessage())
     }
 
-    mp, ok := response.DynMap("router_table")
+    mp, ok := response.GetDynMap("router_table")
     if !ok {
         return nil, fmt.Errorf("No router_table in response : %s", response)   
     }
 
     table,err := ToRouterTable(mp)
     if err != nil {
-        return err
+        return nil, err
     }
     return table, nil
 }
@@ -252,12 +265,15 @@ func (this *Manager) tableClients(table *RouterTable, partition int) ([]cheshire
 
     clients := make([]cheshire.Client, 0)
 
-    entries := table.Entries(partition)
+    entries, err := table.PartitionEntries(partition)
+    if err != nil {
+        return clients, err
+    }
 
-    for entry := range(entries) {
+    for _,entry := range(entries) {
         conn, ok := this.connections[entry.Id()]
         if !ok {
-          log.Errorf("no connection found for %s", entry)
+          log.Printf("no connection found for %s", entry)
         } 
         clients = append(clients, conn)
     }
@@ -295,10 +311,12 @@ func (this *Manager) SetRouterTable(table *RouterTable) (*RouterTable, error){
     for _, client := range(this.connections) {
         client.Close()
     }
-
+    oldTable := this.table
     this.connections = c
     this.table = table
     this.save()
+
+    return oldTable, nil
 }
 
 func (this *Manager) createConnection(entry *RouterEntry) (cheshire.Client) {

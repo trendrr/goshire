@@ -2,6 +2,9 @@ package partition
 
 import (
     "github.com/trendrr/cheshire-golang/dynmap"
+    "github.com/trendrr/cheshire-golang/cheshire"
+    "time"
+    "fmt"
 )
 
 
@@ -18,14 +21,14 @@ type Partitioner interface {
     //This should be atomic, i.e. it either locks
     // all the requested partitions or fails
     // it should skip if a partition is already locked (not fail)
-    Lock([]int partition) (error)
+    Lock(partition []int) (error)
     // Unlock all requested partitions or return error
     // it should skip if the partition is already unlocked (not fail)
-    Unlock([]int partition) (error)
+    Unlock(partition []int) (error)
 
     //Gets all the data for a specific partition
     //should send total # of items on the finished chanel when complete
-    Data(partition int, deleteData bool, chan *dynmap.DynMap, finished chan int, errorChan chan error)
+    Data(partition int, deleteData bool, dataChan chan *dynmap.DynMap, finished chan int, errorChan chan error)
     SetData(partition int, data *dynmap.DynMap)
 }
 
@@ -46,7 +49,7 @@ func setupPartitionControllers(par Partitioner) {
 
 func Checkin(request *cheshire.Request, conn cheshire.Connection) {
     table, err := partitioner.RouterTable()
-    revision := 0
+    revision := int64(0)
     if err == nil {
         revision = table.Revision
     }
@@ -59,7 +62,7 @@ func Checkin(request *cheshire.Request, conn cheshire.Connection) {
 func GetRouterTable(request *cheshire.Request, conn cheshire.Connection) {
     tble, err := partitioner.RouterTable()
     if err != nil {
-        conn.Write(request.NewError(506, string(err)))
+        conn.Write(request.NewError(506, fmt.Sprintf("Error: %s",err)))
         return
     }
     response := request.NewResponse()
@@ -68,7 +71,7 @@ func GetRouterTable(request *cheshire.Request, conn cheshire.Connection) {
 }
 
 func SetRouterTable(request *cheshire.Request, conn cheshire.Connection) {
-    rtmap, ok := request.Params().DynMap("router_table")
+    rtmap, ok := request.Params().GetDynMap("router_table")
     if !ok {
         conn.Write(request.NewError(406, "No router_table"))
         return   
