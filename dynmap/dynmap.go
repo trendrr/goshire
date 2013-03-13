@@ -108,6 +108,14 @@ func (this *DynMap) GetInt64(key string) (int64, bool) {
 	return -1, false
 }
 
+func (this *DynMap) MustInt64(key string, def int64) int64 {
+	v, ok := this.GetInt64(key)
+	if ok {
+		return v
+	}
+	return def
+}
+
 func (this *DynMap) MustInt(key string, def int) int {
 	v, ok := this.GetInt(key)
 	if ok {
@@ -250,6 +258,30 @@ func (this *DynMap) GetIntSlice(key string) ([]int, bool) {
 	}
 	return nil, false
 }
+
+//gets a slice of ints.  if the value is a string it will
+//split by the requested delimiter
+func (this *DynMap) GetIntSliceSplit(key, delim string) ([]int, bool) {
+	lst, ok := this.Get(key)
+	if !ok {
+		return nil, false
+	}
+	switch v := lst.(type) {
+	case string :
+		retlist := make([]int, 0)
+		for _,tmp := range(strings.Split(v, delim)) {
+			in, err := ToInt(tmp)
+			if err != nil {
+				return nil, false
+			}
+			retlist = append(retlist, in)
+		}
+		return retlist, true
+	}
+	ret, ok := this.GetIntSlice(key)
+	return ret, ok
+}
+
 
 // Adds the item to a slice
 func (this *DynMap) AddToSlice(key string, mp interface{}) error{
