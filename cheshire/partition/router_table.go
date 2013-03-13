@@ -16,6 +16,7 @@ import (
 // The table is considered generally immutable.  If any changes occur a new table should
 // be generated and propagated.
 type RouterTable struct {
+
     //The name of the service. should be unique.  (Example: "trendrrdb")
     Service string
 
@@ -30,9 +31,12 @@ type RouterTable struct {
     //Replication Factory
     ReplicationFactor int
 
+    //This is me
+    MyEntry *RouterEntry
+
     //entries organized by partition
     //index in the array is the partition
-    EntriesPartition []*RouterEntry
+    EntriesPartition [][]*RouterEntry
 
     //The unique entries
     Entries []*RouterEntry
@@ -45,6 +49,7 @@ func NewRouterTable(service string) *RouterTable {
     return &RouterTable {
         Service : service,
         DynMap : dynmap.NewDynMap(),
+        ReplicationFactor : 2,
     }
 }
 
@@ -90,13 +95,13 @@ func ToRouterTable(mp *dynmap.DynMap) (*RouterTable, error) {
 
     // set up the partition to entry mapping
     partitionCount := 0
-    t.EntriesPartition = make([]*RouterEntry, t.TotalPartitions)
+    entriesPartition := make([]*RouterEntry, t.TotalPartitions)
     for _, e := range(t.Entries) {
         for _,p := range(e.Partitions) {
             if p >= t.TotalPartitions {
                 return nil, fmt.Errorf("Bad Partition entry (greater then total partitions): %s", e)
             }
-            t.EntriesPartition[p] = e
+            entriesPartition[p] = e
             partitionCount++
         }
     }
@@ -105,8 +110,27 @@ func ToRouterTable(mp *dynmap.DynMap) (*RouterTable, error) {
         return nil, fmt.Errorf("Bad table, some partitions un accounted for")
     }
 
-
     t.DynMap = t.ToDynMap()
+
+    t.EntriesPartition := make([][]*RouterEntry, t.TotalPartitions)
+    //Now setup the replication partitions. 
+    for _, e := range(t.Entries) {
+        
+        for _,p := range(e.Partitions) {
+            pRep, err := this.repPartitions(p)
+            if err != nil {
+                return nil, fmt.Errorf("Bad table (%s)", err)
+            }
+            entries := make([]*RouterEntry, len(pRep)+1)
+            entries[0] = e
+            for i :=1; i < len(entries); i++ {
+                entries[i] = entriesPartition[pRep[i-1]]
+                e.PartitionsMap[pRep] = false
+            }
+            t.EntriesPartition[p] = entries
+        }
+    }
+
     return t, nil
 }
 
@@ -139,9 +163,40 @@ func (this *RouterTable) ToDynMap() *dynmap.DynMap {
     return mp
 }
 
-func (this *RouterTable) Entry(partition int) (*RouterEntry, error) {
+//gets the partitions that should replicate this master.
+func (this *RouterTable) repPartitions(partition int) ([]int, error){
+
+    entries := make([]int, 0)
     if partition >= this.TotalPartitions {
-        return nil, fmt.Errorf("Requested partition %d is out of bounds (%d) ", partition, this.TotalPartitions )
+        return entries, fmt.Errorf("Requested partition %d is out of bounds (%d) ", partition, this.TotalPartitions )
+    }
+
+    for i := 1; i < this.NumPartitions; i++ {
+        par := (i+partition) % this.NumPartitions
+
+        entry = this.EntriesPartition[partition]
+        v, ok := entry.PartitionsMap[par]
+        if ok && v {
+            //this is master.  skip to next one
+            continue
+        }
+        entries = append(entries, par)
+        //
+        if len(entries) == this.ReplicationFactor {
+            return entries, nil
+        }
+    } 
+    return entries, nil
+
+}
+
+
+// Gets the entries associated with the given partition
+// [0] should be the master entry, and there should be 
+// table.ReplicationFactor number of entries
+func (this *RouterTable) Entries(partition int) ([]*RouterEntry, error) {
+    if partition >= this.TotalPartitions {
+        return make([]*RouterEntry), fmt.Errorf("Requested partition %d is out of bounds (%d) ", partition, this.TotalPartitions )
     }
     return this.EntriesPartition[partition], nil
 }
@@ -156,8 +211,11 @@ type RouterEntry struct {
     //Is this entry me?
     Self bool
     
-    //list of partitions this entry is responsible for
+    //list of partitions this entry is responsible for (master only)
     Partitions []int
+
+    //Map of all the partitions this entry is responsible for.  true indicates master, false otherwise
+    PartitionsMap map[int]bool 
 
     //this entry serialized as a DynMap
     DynMap *dynmap.DynMap
@@ -167,6 +225,7 @@ type RouterEntry struct {
 func ToRouterEntry(mp *dynmap.DynMap) (*RouterEntry, error) {
     e := &RouterEntry{
         Self : false,
+        PartitionsMap : make(map[int]bool)
     }
     var ok bool
     e.Address, ok = mp.GetString("address")
@@ -181,13 +240,21 @@ func ToRouterEntry(mp *dynmap.DynMap) (*RouterEntry, error) {
     if !ok {
         return nil, fmt.Errorf("No Partitions in Entry: %s", mp)
     }
+    for _, p := range(e.Partitions) {
+        e.PartitionsMap[p] = true
+    }
     e.DynMap = e.ToDynMap()
     return e, nil
 }
 
+//Id for this entry.  current is address:jsonport
+func (this *RouterEntry) Id() string {
+    return fmt.Sprintf("%s:%d", this.Address, this.JsonPort)
+}
 
 // Translate to a DynMap of the form:
 // {
+//     "id" : "localhost:8009"
 //     "address" : "localhost",
 //     "ports" : {
 //         "json" : 8009,
@@ -209,132 +276,8 @@ func (this *RouterEntry) ToDynMap() *dynmap.DynMap {
     if this.HttpPort > 0 {
         mp.PutWithDot("ports.http", this.HttpPort)
     }
-    
+    mp.Put("id", this.Id())
     mp.Put("partitions", this.Partitions)
     this.DynMap = mp
     return mp
-}
-
-
-// Manages the router table and connections and things
-type Routing struct {
-    table *RouterTable
-    lock sync.RWMutex
-    connections map[string]cheshire.Client
-    ServiceName string
-    DataDir string
-}
-
-
-func NewRouting(serviceName string, dataDir string) *Routing {
-    routing := &Routing{
-        table : nil,
-        connections : make(map[string]cheshire.Client),
-        DataDir : dataDir,
-        ServiceName : serviceName,
-    }
-    //attempt to load from disk
-    err := routing.load()
-    if err != nil {
-        log.Println(err)
-    }
-    return routing
-}
-
-//loads the stored version
-func (this *Routing) load() error{
-    bytes, err := ioutil.ReadFile(this.filename())
-    if err != nil {
-        return err
-    }
-    mp := dynmap.NewDynMap()
-    err = mp.UnmarshalJSON(bytes)
-    if err != nil {
-        return err
-    }
-    table,err := ToRouterTable(mp)
-    if err != nil {
-        return err
-    }
-    this.SetRouterTable(table)    
-    return nil
-}
-
-func (this *Routing) save() error {
-    mp := this.table.ToDynMap()
-    bytes,err := mp.MarshalJSON()
-    if err != nil {
-        return err
-    }
-    err = ioutil.WriteFile(this.filename(), bytes, 0644)
-    return err
-}
-
-func (this *Routing) filename() string {
-    if this.DataDir== "" {
-        return fmt.Sprintf("%s.routertable", this.ServiceName)
-    }
-    return fmt.Sprintf("%s%s%s.routertable", this.DataDir, os.PathSeparator, this.ServiceName)
-}
-
-//gets the client and entry for a specific partition
-func (this *Routing) Entry(partition int) (cheshire.Client, *RouterEntry, error) {
-    this.lock.RLock()
-    defer this.lock.RUnlock()
-
-    entry, err := this.table.Entry(partition)
-    if err != nil {
-        return nil, nil, err
-    }
-    host,port := this.getHostPort(entry)
-    key := fmt.Sprintf("%s:%d", host,port)
-    conn, ok := this.connections[key]
-    if !ok {
-      return nil, nil, fmt.Errorf("no connection found")
-    } 
-    return conn, entry, nil
-}
-
-//sets a new router table
-func (this *Routing) SetRouterTable(table *RouterTable) {
-    this.lock.Lock()
-    defer this.lock.Unlock()
-
-    //create a new map for connections
-    c := make(map[string]cheshire.Client)
-    for _,e := range(table.Entries) {
-        key := this.getConnectionKey(e)
-        conn, ok := this.connections[key]
-        if !ok {
-            conn = this.createConnection(e)
-        } 
-        delete(this.connections, key)
-        c[key] = conn
-    }
-    //now close any Clients for removed entries
-    for _, client := range(this.connections) {
-        client.Close()
-    }
-
-    this.connections = c
-    this.table = table
-    this.save()
-}
-
-func (this *Routing) createConnection(entry *RouterEntry) (cheshire.Client) {
-    host,port := this.getHostPort(entry)
-    c, _ := cheshire.NewJsonClient(host, port)
-    return c
-}
-
-func (this *Routing) getConnectionKey(entry *RouterEntry) string {
-    host,port := this.getHostPort(entry)
-    key := fmt.Sprintf("%s:%d", host,port)
-    return key
-}
-
-//gets the host and port from an entry
-func (this *Routing) getHostPort(entry *RouterEntry) (string, int) {
-    //TODO: we want to allow http or other transports as a configuration option
-    return entry.Address, entry.JsonPort
 }

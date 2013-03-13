@@ -14,19 +14,26 @@ type Partitioner interface {
     SetRouterTable(routerTable *RouterTable) error
     
     //Lock the data.  this is for rebalance operations
-    Lock() error
-    Unlock() error
+    //returns an error if lock failed.
+    //This should be atomic, i.e. it either locks
+    // all the requested partitions or fails
+    // it should skip if a partition is already locked (not fail)
+    Lock([]int partition) (error)
+    // Unlock all requested partitions or return error
+    // it should skip if the partition is already unlocked (not fail)
+    Unlock([]int partition) (error)
 
     //Gets all the data for a specific partition
     //should send total # of items on the finished chanel when complete
     Data(partition int, deleteData bool, chan *dynmap.DynMap, finished chan int, errorChan chan error)
+    SetData(partition int, data *dynmap.DynMap)
 }
 
 var partitioner Partitioner 
 
 // Sets the partitioner and registers the necessary 
 // controllers
-func SetPartitioner(par Partitioner) {
+func setupPartitionControllers(par Partitioner) {
     partitioner = par
 
     //register the controllers.
@@ -34,9 +41,20 @@ func SetPartitioner(par Partitioner) {
     cheshire.RegisterApi("/chs/rt/set", "POST", SetRouterTable)
     cheshire.RegisterApi("/chs/lock", "POST", Lock)
     cheshire.RegisterApi("/chs/unlock", "POST", Unlock)
-
+    cheshire.RegisterApi("/chs/checkin", "GET", Checkin)
 }
 
+func Checkin(request *cheshire.Request, conn cheshire.Connection) {
+    table, err := partitioner.RouterTable()
+    revision := 0
+    if err == nil {
+        revision = table.Revision
+    }
+    response := request.NewResponse()
+    response.Put("router_table_revision", revision)
+    response.Put("ts", time.Now())
+    conn.Write(response)
+}
 
 func GetRouterTable(request *cheshire.Request, conn cheshire.Connection) {
     tble, err := partitioner.RouterTable()
@@ -45,12 +63,7 @@ func GetRouterTable(request *cheshire.Request, conn cheshire.Connection) {
         return
     }
     response := request.NewResponse()
-
-    if request.Params().MustBool("rv_only", false) {
-        response.PutWithDot("router_table.revision" tble.Revision)
-    } else {
-        response.Put("router_table", tble.ToDynMap())
-    }
+    response.Put("router_table", tble.ToDynMap())
     conn.Write(response)
 }
 
@@ -76,16 +89,29 @@ func SetRouterTable(request *cheshire.Request, conn cheshire.Connection) {
 }
 
 func Lock(request *cheshire.Request, conn cheshire.Connection) {
-    err := partitioner.Lock()
+
+    partitions, ok := request.Params().GetIntSliceSplit("partitions", ",")
+    if !ok {
+        conn.Write(request.NewError(406, fmt.Sprintf("partitions param missing")))
+        return
+    }
+
+    err := partitioner.Lock(partitions)
     if err != nil {
-        conn.Write(request.NewError(406, fmt.Sprintf("Unable to lock (%s)", err)))
+        //now send back an error
+        conn.Write(request.NewError(406, fmt.Sprintf("Unable to lock partitions (%s)", err)))
         return
     }
     conn.Write(request.NewResponse())
 }
 
 func Unlock(request *cheshire.Request, conn cheshire.Connection) {
-    err := partitioner.Unlock()
+    partitions, ok := request.Params().GetIntSliceSplit("partitions", ",")
+    if !ok {
+        conn.Write(request.NewError(406, fmt.Sprintf("partitions param missing")))
+        return
+    }
+    err := partitioner.Unlock(partitions)
     if err != nil {
         conn.Write(request.NewError(406, fmt.Sprintf("Unable to unlock (%s)", err)))
         return
