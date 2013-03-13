@@ -173,7 +173,7 @@ func (this *DynMap) GetTimeOrDefault(key string, def time.Time) (time.Time) {
 	return tmp
 }
 
-func (this *DynMap) Bool(key string) (bool, bool) {
+func (this *DynMap) GetBool(key string) (bool, bool) {
 	tmp, ok := this.Get(key)
 	if !ok {
 		return false, ok
@@ -186,7 +186,7 @@ func (this *DynMap) Bool(key string) (bool, bool) {
 }
 
 func (this *DynMap) MustBool(key string, def bool) (bool) {
-	tmp, ok := this.Bool(key)
+	tmp, ok := this.GetBool(key)
 	if !ok {
 		return def
 	}
@@ -196,7 +196,7 @@ func (this *DynMap) MustBool(key string, def bool) (bool) {
 //Gets a dynmap from the requested.
 // This will update the value in the map if the 
 // value was not already a dynmap.
-func (this *DynMap) DynMap(key string) (*DynMap, bool) {
+func (this *DynMap) GetDynMap(key string) (*DynMap, bool) {
 	tmp, ok := this.Get(key)
 	if !ok {
 		return nil, ok
@@ -206,7 +206,7 @@ func (this *DynMap) DynMap(key string) (*DynMap, bool) {
 }
 
 func (this *DynMap) MustDynMap(key string, def *DynMap) *DynMap {
-	tmp, ok := this.DynMap(key)
+	tmp, ok := this.GetDynMap(key)
 	if !ok {
 		return def
 	}

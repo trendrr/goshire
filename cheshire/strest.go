@@ -61,10 +61,10 @@ func (this *Request) SetUri(uri string) {
 }
 
 func (this *Request) Params() *dynmap.DynMap {
-	m, ok := this.DynMap.DynMap("strest.params")
+	m, ok := this.GetDynMap("strest.params")
 	if !ok {
 		this.PutIfAbsentWithDot("strest.params", dynmap.NewDynMap())
-		m, ok = this.DynMap.DynMap("strest.params")
+		m, ok = this.GetDynMap("strest.params")
 	}
 	return m
 }
