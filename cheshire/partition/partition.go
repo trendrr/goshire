@@ -5,39 +5,40 @@ import (
     "github.com/trendrr/cheshire-golang/cheshire"
     "time"
     "fmt"
+    "log"
 )
 
 
 type Partitioner interface {
-    //Return the current routertable.
-    RouterTable() (*RouterTable, error)
-
-    //Set the router table.  through an error if
-    //attempting to set an older partition table
-    SetRouterTable(routerTable *RouterTable) error
     
-    //Lock the data.  this is for rebalance operations
-    //returns an error if lock failed.
-    //This should be atomic, i.e. it either locks
-    // all the requested partitions or fails
-    // it should skip if a partition is already locked (not fail)
-    Lock(partition []int) (error)
-    // Unlock all requested partitions or return error
-    // it should skip if the partition is already unlocked (not fail)
-    Unlock(partition []int) (error)
-
     //Gets all the data for a specific partition
     //should send total # of items on the finished chanel when complete
     Data(partition int, deleteData bool, dataChan chan *dynmap.DynMap, finished chan int, errorChan chan error)
+
+    //Imports a data item
     SetData(partition int, data *dynmap.DynMap)
 }
 
-var partitioner Partitioner 
+type DummyPartitioner struct {
+
+}
+
+func (this *DummyPartitioner) Data(partition int, deleteData bool, dataChan chan *dynmap.DynMap, finished chan int, errorChan chan error) {
+    log.Printf("Requesting Data from dummy partitioner, ignoring.. (partition: %d),(deleteData: %s)", partition, deleteData)
+}
+
+func (this *DummyPartitioner) SetData(partition int, data *dynmap.DynMap) {
+    log.Printf("Requesting SetData from dummy partitioner, ignoring.. (partition: %d),(data: %s)", partition, data)
+}
+
+
+
+var manager Manager 
 
 // Sets the partitioner and registers the necessary 
 // controllers
-func setupPartitionControllers(par Partitioner) {
-    partitioner = par
+func setupPartitionControllers(man Manager) {
+    man = manager
 
     //register the controllers.
     cheshire.RegisterApi("/chs/rt/get", "GET", GetRouterTable)
@@ -48,7 +49,7 @@ func setupPartitionControllers(par Partitioner) {
 }
 
 func Checkin(request *cheshire.Request, conn cheshire.Connection) {
-    table, err := partitioner.RouterTable()
+    table, err := manager.RouterTable()
     revision := int64(0)
     if err == nil {
         revision = table.Revision
@@ -60,7 +61,7 @@ func Checkin(request *cheshire.Request, conn cheshire.Connection) {
 }
 
 func GetRouterTable(request *cheshire.Request, conn cheshire.Connection) {
-    tble, err := partitioner.RouterTable()
+    tble, err := manager.RouterTable()
     if err != nil {
         conn.Write(request.NewError(506, fmt.Sprintf("Error: %s",err)))
         return
@@ -83,7 +84,7 @@ func SetRouterTable(request *cheshire.Request, conn cheshire.Connection) {
         return
     }
 
-    err = partitioner.SetRouterTable(rt)
+    _, err = manager.SetRouterTable(rt)
     if err != nil {
         conn.Write(request.NewError(406, fmt.Sprintf("Unable to set router table (%s)", err)))
         return
@@ -93,13 +94,13 @@ func SetRouterTable(request *cheshire.Request, conn cheshire.Connection) {
 
 func Lock(request *cheshire.Request, conn cheshire.Connection) {
 
-    partitions, ok := request.Params().GetIntSliceSplit("partitions", ",")
+    partition, ok := request.Params().GetInt("partition")
     if !ok {
-        conn.Write(request.NewError(406, fmt.Sprintf("partitions param missing")))
+        conn.Write(request.NewError(406, fmt.Sprintf("partition param missing")))
         return
     }
 
-    err := partitioner.Lock(partitions)
+    err := manager.PartitionLock(partition)
     if err != nil {
         //now send back an error
         conn.Write(request.NewError(406, fmt.Sprintf("Unable to lock partitions (%s)", err)))
@@ -109,14 +110,16 @@ func Lock(request *cheshire.Request, conn cheshire.Connection) {
 }
 
 func Unlock(request *cheshire.Request, conn cheshire.Connection) {
-    partitions, ok := request.Params().GetIntSliceSplit("partitions", ",")
+    partition, ok := request.Params().GetInt("partition")
     if !ok {
-        conn.Write(request.NewError(406, fmt.Sprintf("partitions param missing")))
+        conn.Write(request.NewError(406, fmt.Sprintf("partition param missing")))
         return
     }
-    err := partitioner.Unlock(partitions)
+
+    err := manager.PartitionUnlock(partition)
     if err != nil {
-        conn.Write(request.NewError(406, fmt.Sprintf("Unable to unlock (%s)", err)))
+        //now send back an error
+        conn.Write(request.NewError(406, fmt.Sprintf("Unable to lock partitions (%s)", err)))
         return
     }
     conn.Write(request.NewResponse())
@@ -154,5 +157,5 @@ func Data(request *cheshire.Request, conn cheshire.Connection) {
             }
         }
     }()
-    partitioner.Data(part, remove, dataChan, finishedChan, errorChan)
+    manager.partitioner.Data(part, remove, dataChan, finishedChan, errorChan)
 }

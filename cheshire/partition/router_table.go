@@ -4,6 +4,7 @@ import (
     // "time"
     "github.com/trendrr/cheshire-golang/dynmap"
     "fmt"
+    // "log"
 )
 
 
@@ -46,6 +47,23 @@ func NewRouterTable(service string) *RouterTable {
         DynMap : dynmap.NewDynMap(),
         ReplicationFactor : 2,
     }
+}
+
+//Rebuilds this router table, if you changed anything, you should call this and use the newly built 
+//table
+func (this *RouterTable) Rebuild() (*RouterTable, error) {
+    total := 0
+    //set TotalPartitions
+    for _,e := range(this.Entries) {
+        total += len(e.Partitions)
+    }
+    this.TotalPartitions = total
+    mp := this.ToDynMap()
+    table,err := ToRouterTable(mp)
+    if err != nil {
+        return nil, err
+    }
+    return table, nil 
 }
 
 // Creates a new router table from the dynmap passed in
@@ -112,7 +130,7 @@ func ToRouterTable(mp *dynmap.DynMap) (*RouterTable, error) {
     for _, e := range(t.Entries) {
         
         for _,p := range(e.Partitions) {
-            pRep, err := t.repPartitions(p)
+            pRep, err := t.repPartitions(p, e)
             if err != nil {
                 return nil, fmt.Errorf("Bad table (%s)", err)
             }
@@ -159,8 +177,9 @@ func (this *RouterTable) ToDynMap() *dynmap.DynMap {
 }
 
 //gets the partitions that should replicate this master.
-func (this *RouterTable) repPartitions(partition int) ([]int, error){
-
+func (this *RouterTable) repPartitions(partition int, entry *RouterEntry) ([]int, error){
+    //This method could be much better optimized, but 
+    //it is fairly rare, so we wont worry about it..
     entries := make([]int, 0)
     if partition >= this.TotalPartitions {
         return entries, fmt.Errorf("Requested partition %d is out of bounds (%d) ", partition, this.TotalPartitions )
@@ -168,18 +187,14 @@ func (this *RouterTable) repPartitions(partition int) ([]int, error){
 
     for i := 1; i < this.TotalPartitions; i++ {
         par := (i+partition) % this.TotalPartitions
-
-        entry := this.EntriesPartition[partition]
-
-
-        v, ok := entry[0].PartitionsMap[par]
+        v, ok := entry.PartitionsMap[par]
         if ok && v {
             //this is master.  skip to next one
             continue
         }
         entries = append(entries, par)
-        //
-        if len(entries) == this.ReplicationFactor {
+        //we check if len < repfactor -1 (minus one because we still need the current partition)
+        if len(entries) == this.ReplicationFactor-1 {
             return entries, nil
         }
     } 

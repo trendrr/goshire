@@ -174,11 +174,9 @@ func (this *Manager) MyResponsibility(partition int) (bool, bool) {
 }
 
 //Sets the partitioner for this manager
-//Also sets up the controllers.  This is only used for server side
 //this should only be called once at initialization.  it is not threadsafe
 func (this *Manager) SetPartitioner(par Partitioner) {
     this.partitioner = par
-    setupPartitionControllers(par)
 }
 
 // Does a checkin with the requested client.  returns the 
@@ -280,7 +278,19 @@ func (this *Manager) tableClients(table *RouterTable, partition int) ([]cheshire
     return clients, nil
 }
 
+//returns the current router table
+func (this *Manager) RouterTable() (*RouterTable, error) {
+    this.lock.RLock()
+    defer this.lock.RUnlock()
+    if this.table == nil {
+        return nil, fmt.Errorf("No Router Table available")
+    }
+
+    return this.table, nil
+}
+
 //sets a new router table
+// returns the old router table, or error
 func (this *Manager) SetRouterTable(table *RouterTable) (*RouterTable, error){
     this.lock.Lock()
     defer this.lock.Unlock()
