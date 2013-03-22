@@ -10,8 +10,38 @@ import (
     "os"
     "log"
     "time"
-
 )
+
+type Partitioner interface {
+    
+    //Gets all the data for a specific partition
+    //should send total # of items on the finished chanel when complete
+    Data(partition int, deleteData bool, dataChan chan *dynmap.DynMap, finished chan int, errorChan chan error)
+
+    //Imports a data item
+    SetData(partition int, data *dynmap.DynMap)
+}
+
+type DummyPartitioner struct {
+
+}
+
+func (this *DummyPartitioner) Data(partition int, deleteData bool, dataChan chan *dynmap.DynMap, finished chan int, errorChan chan error) {
+    log.Printf("Requesting Data from dummy partitioner, ignoring.. (partition: %d),(deleteData: %s)", partition, deleteData)
+}
+
+func (this *DummyPartitioner) SetData(partition int, data *dynmap.DynMap) {
+    log.Printf("Requesting SetData from dummy partitioner, ignoring.. (partition: %d),(data: %s)", partition, data)
+}
+
+
+type EventType string
+
+type Event struct {
+    EventType string
+
+
+}
 
 
 // Manages the router table and connections and things
@@ -71,7 +101,7 @@ func NewManager(serviceName, dataDir, myEntryId string) *Manager {
 }
 
 // Puts a lock on the specified partition (locally only)
-func (this *Manager) PartitionLock(partition int) error {
+func (this *Manager) LockPartition(partition int) error {
     this.lock.Lock()
     defer this.lock.Unlock()
     this.lockedPartitions[partition] = true
@@ -79,7 +109,7 @@ func (this *Manager) PartitionLock(partition int) error {
 }
 
 // Locks all remote.
-func (this *Manager) PartitionLockRemote(partition int) error {
+func (this *Manager) LockPartitionRemote(partition int) error {
     clients, err := this.Clients(partition)
     if err != nil {
         return err
@@ -107,7 +137,7 @@ func (this *Manager) PartitionLockRemote(partition int) error {
     return nil
 }
 
-func (this *Manager) PartitionUnlock(partition int) error {
+func (this *Manager) UnlockPartition(partition int) error {
     this.lock.Lock()
     defer this.lock.Unlock()
     delete(this.lockedPartitions, partition)
@@ -115,7 +145,7 @@ func (this *Manager) PartitionUnlock(partition int) error {
 }
 
 
-func (this *Manager) PartitionUnlockRemote(partition int) error {
+func (this *Manager) UnlockPartitionRemote(partition int) error {
     clients, err := this.Clients(partition)
     if err != nil {
         return err
@@ -287,6 +317,89 @@ func (this *Manager) RouterTable() (*RouterTable, error) {
     }
 
     return this.table, nil
+}
+
+
+//Rebalance 
+//Sync any data from remote, remove any partitions that
+//we are no longer in charge of.
+func (this *Manager) Rebalance(newtable, oldtable *RouterTable) {
+   
+    newPartitions := make([]int, 0)
+
+    //yikes, this is an ugly way to do this..
+    for _,n := range(newtable.MyEntry.Partitions) {
+        contains := false
+        for _, o := range(oldtable.MyEntry.Partitions) {
+            if n == o {
+                contains = true
+            }
+        }
+        if !contains {
+            newPartitions = append(newPartitions, n)
+        }
+    }
+
+
+    for _, n := range(newPartitions) {
+        //lock then move the data.
+        this.DataPull(n)
+
+    }
+
+    //now look for items removed in new table and delete those partitions.
+
+}
+
+
+
+func (this *Manager) DataPull(partition int) error {
+    this.LockPartition(partition)
+    this.LockPartitionRemote(partition)
+
+    defer this.UnlockPartition(partition)
+    defer this.UnlockPartitionRemote(partition)
+
+    clients, err := this.Clients(partition)
+
+    var client cheshire.Client
+    //now choose a good client
+    for _, c := range(clients) {
+        //need to make sure this client is not me.
+        //TODO: we also need to make sure this partition existed on this node
+        //in the old table. (Or we need this to be a precondition!)
+        client = c
+    }
+
+    request := cheshire.NewRequest("/chs/data/pull", "GET")
+    request.SetTxnAcceptMulti()
+    responseChan := make(chan *Response, 100)
+    errorChan := make(chan error)
+
+    client.ApiCall(request, responseChan, errorChan)
+    for {
+        select {
+            case response := <- responseChan :
+                log.Printf("Data pull response: %s", response)
+                if response.StatusCode() != 200 {
+                    //umm, what to do ?
+                    log.Printf("BAD Response: %s", response.MarshalJSON())
+                }
+                mp := response.ToDynMap()
+                data, ok := mp.GetDynMap("data")
+                if ok {
+                    this.partitioner.SetData(partition, data)
+                }
+                if response.TxnStatus() == "complete" {
+                    //yay!
+                    log.Println("FINISHED DATA PULL for partition %d", partition)
+                    return nil
+                }
+            case err := <- errorChan :
+                //TODO: try a different client?
+                return err
+        }
+    }
 }
 
 //sets a new router table

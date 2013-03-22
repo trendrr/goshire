@@ -46,6 +46,7 @@ func setupPartitionControllers(man Manager) {
     cheshire.RegisterApi("/chs/lock", "POST", Lock)
     cheshire.RegisterApi("/chs/unlock", "POST", Unlock)
     cheshire.RegisterApi("/chs/checkin", "GET", Checkin)
+    // cheshire.RegisterApi("/chs/data/pull", "GET", DataPull)
 }
 
 func Checkin(request *cheshire.Request, conn cheshire.Connection) {
@@ -100,7 +101,7 @@ func Lock(request *cheshire.Request, conn cheshire.Connection) {
         return
     }
 
-    err := manager.PartitionLock(partition)
+    err := manager.LockPartition(partition)
     if err != nil {
         //now send back an error
         conn.Write(request.NewError(406, fmt.Sprintf("Unable to lock partitions (%s)", err)))
@@ -116,7 +117,7 @@ func Unlock(request *cheshire.Request, conn cheshire.Connection) {
         return
     }
 
-    err := manager.PartitionUnlock(partition)
+    err := manager.UnlockPartition(partition)
     if err != nil {
         //now send back an error
         conn.Write(request.NewError(406, fmt.Sprintf("Unable to lock partitions (%s)", err)))
