@@ -69,7 +69,7 @@ func (this *httpHandler) ServeHTTP(writer http.ResponseWriter, req *http.Request
 }
 
 func ToStrestRequest(req *http.Request) *Request {
-	var request = new(Request)
+	var request = NewRequest(req.URL.Path, req.Method)
 	request.SetUri(req.URL.Path)
 	request.SetMethod(req.Method)
 	request.SetTxnId(req.Header.Get("Strest-Txn-Id"))
