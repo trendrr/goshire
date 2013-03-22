@@ -86,8 +86,19 @@ func (this *Request) TxnAccept() string {
 	return this.MustString("strest.txn.accept", "single")
 }
 
+//Set to either "single" or "multi"
 func (this *Request) SetTxnAccept(accept string) {
 	this.PutWithDot("strest.txn.accept", accept)
+}
+
+//This request will accept multiple responses
+func (this *Request) SetTxnAcceptMulti() {
+	this.SetTxnAccept("multi");
+}
+
+//This request will only accept a single response
+func (this *Request) SetTxnAcceptSingle() {
+	this.SetTxnAccept("single");
 }
 
 // Creates a new response based on this request.
