@@ -381,6 +381,19 @@ func (this *DynMap) Exists(key string) bool {
 	return ok
 }
 
+//Remove a mapping 
+//TODO: this will need to honor the dot operator!
+func (this *DynMap) Remove(key string) (interface{}, bool) {
+	val, ok := this.Map[key]
+	if ok {
+		delete(this.Map, key)
+		return val, true
+	}
+	//TODO: dot op..
+	return val, false
+
+}
+
 //
 // Get's the value.  will honor the dot operator if needed.
 // key = 'map.map2'
