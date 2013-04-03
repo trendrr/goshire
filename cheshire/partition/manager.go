@@ -60,10 +60,10 @@ type Manager struct {
 
 // Creates a new manager.  Uses the one or more seed urls to download the 
 // routing table.
-func NewManagerSeed(serviceName, dataDir, myEntryId string, seedHttpUrls []string) (*Manager, error) {
+func NewManagerSeed(partitioner Partitioner, serviceName, dataDir, myEntryId string, seedHttpUrls []string) (*Manager, error) {
     //TODO: can we get the servicename from the routing table?
 
-    manager := NewManager(serviceName, dataDir, myEntryId)
+    manager := NewManager(partitioner, serviceName, dataDir, myEntryId)
     var err error
     for _,url := range(seedHttpUrls) {
 
@@ -87,7 +87,7 @@ func NewManagerSeed(serviceName, dataDir, myEntryId string, seedHttpUrls []strin
 
 //Creates a new manager.  will load the routing table from disk if
 //it exists
-func NewManager(serviceName, dataDir, myEntryId string) *Manager {
+func NewManager(partitioner Partitioner, serviceName, dataDir, myEntryId string) *Manager {
     manager := &Manager{
         table : nil,
         connections : make(map[string]cheshire.Client),
