@@ -37,6 +37,7 @@ func (this *DummyPartitioner) SetData(partition int, data *dynmap.DynMap) {
 
 type EventType string
 
+
 type Event struct {
     EventType string
 
@@ -60,6 +61,8 @@ type Manager struct {
 // Creates a new manager.  Uses the one or more seed urls to download the 
 // routing table.
 func NewManagerSeed(serviceName, dataDir, myEntryId string, seedHttpUrls []string) (*Manager, error) {
+    //TODO: can we get the servicename from the routing table?
+
     manager := NewManager(serviceName, dataDir, myEntryId)
     var err error
     for _,url := range(seedHttpUrls) {
@@ -98,6 +101,12 @@ func NewManager(serviceName, dataDir, myEntryId string) *Manager {
         log.Println(err)
     }
     return manager
+}
+
+// Registers all the necessary controllers for partitioning.
+func (this *Manager) RegisterControllers() error {
+    setupPartitionControllers(this)
+    return nil
 }
 
 // Puts a lock on the specified partition (locally only)
@@ -310,6 +319,9 @@ func (this *Manager) tableClients(table *RouterTable, partition int) ([]cheshire
 
 //returns the current router table
 func (this *Manager) RouterTable() (*RouterTable, error) {
+    log.Println(this)
+    log.Println(this.lock)
+
     this.lock.RLock()
     defer this.lock.RUnlock()
     if this.table == nil {
@@ -361,6 +373,10 @@ func (this *Manager) DataPull(partition int) error {
     defer this.UnlockPartitionRemote(partition)
 
     clients, err := this.Clients(partition)
+    if err != nil {
+        log.Println("ERROR %s", err)
+        //TODO: umm, wtf?
+    }
 
     var client cheshire.Client
     //now choose a good client
@@ -373,7 +389,7 @@ func (this *Manager) DataPull(partition int) error {
 
     request := cheshire.NewRequest("/chs/data/pull", "GET")
     request.SetTxnAcceptMulti()
-    responseChan := make(chan *Response, 100)
+    responseChan := make(chan *cheshire.Response, 100)
     errorChan := make(chan error)
 
     client.ApiCall(request, responseChan, errorChan)
@@ -383,7 +399,7 @@ func (this *Manager) DataPull(partition int) error {
                 log.Printf("Data pull response: %s", response)
                 if response.StatusCode() != 200 {
                     //umm, what to do ?
-                    log.Printf("BAD Response: %s", response.MarshalJSON())
+                    log.Printf("BAD Response: %s", response)
                 }
                 mp := response.ToDynMap()
                 data, ok := mp.GetDynMap("data")
@@ -400,6 +416,7 @@ func (this *Manager) DataPull(partition int) error {
                 return err
         }
     }
+    return nil
 }
 
 //sets a new router table

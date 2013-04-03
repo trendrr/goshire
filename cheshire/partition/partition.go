@@ -8,37 +8,12 @@ import (
     "log"
 )
 
-
-type Partitioner interface {
-    
-    //Gets all the data for a specific partition
-    //should send total # of items on the finished chanel when complete
-    Data(partition int, deleteData bool, dataChan chan *dynmap.DynMap, finished chan int, errorChan chan error)
-
-    //Imports a data item
-    SetData(partition int, data *dynmap.DynMap)
-}
-
-type DummyPartitioner struct {
-
-}
-
-func (this *DummyPartitioner) Data(partition int, deleteData bool, dataChan chan *dynmap.DynMap, finished chan int, errorChan chan error) {
-    log.Printf("Requesting Data from dummy partitioner, ignoring.. (partition: %d),(deleteData: %s)", partition, deleteData)
-}
-
-func (this *DummyPartitioner) SetData(partition int, data *dynmap.DynMap) {
-    log.Printf("Requesting SetData from dummy partitioner, ignoring.. (partition: %d),(data: %s)", partition, data)
-}
-
-
-
-var manager Manager 
+var manager *Manager 
 
 // Sets the partitioner and registers the necessary 
 // controllers
-func setupPartitionControllers(man Manager) {
-    man = manager
+func setupPartitionControllers(man *Manager) {
+    manager = man
 
     //register the controllers.
     cheshire.RegisterApi("/chs/rt/get", "GET", GetRouterTable)
@@ -62,6 +37,7 @@ func Checkin(request *cheshire.Request, conn cheshire.Connection) {
 }
 
 func GetRouterTable(request *cheshire.Request, conn cheshire.Connection) {
+    log.Println("GetRouterTable")
     tble, err := manager.RouterTable()
     if err != nil {
         conn.Write(request.NewError(506, fmt.Sprintf("Error: %s",err)))
