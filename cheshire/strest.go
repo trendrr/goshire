@@ -104,7 +104,7 @@ func (this *Request) SetTxnAcceptSingle() {
 // Creates a new response based on this request.
 // auto fills the txn id
 func (this *Request) NewResponse() *Response {
-	response := NewResponse()
+	response := newResponse()
 	response.SetTxnId(this.TxnId())
 	return response
 }
@@ -167,7 +167,10 @@ func (this *Response) ToDynMap() *dynmap.DynMap {
 
 // Create a new response object.
 // Values are all set to defaults
-func NewResponse() *Response {
+
+// We keep this private scope, so external controllers never use it directly
+// they should all use request.NewResponse
+func newResponse() *Response {
 	response := &Response{*dynmap.NewDynMap()}
 	response.SetStatusMessage("OK")
 	response.SetStatusCode(200)
