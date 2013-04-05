@@ -4,6 +4,7 @@ import (
     // "time"
     "github.com/trendrr/cheshire-golang/dynmap"
     "fmt"
+    "time"
     // "log"
 )
 
@@ -45,6 +46,7 @@ func NewRouterTable(service string) *RouterTable {
     return &RouterTable {
         Service : service,
         DynMap : dynmap.NewDynMap(),
+        Revision : time.Now().Unix(),
         ReplicationFactor : 2,
     }
 }
