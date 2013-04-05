@@ -11,6 +11,16 @@ type HtmlConnection struct {
 	*HttpConnection
 }
 
+// Renders with a layout template.  
+// 
+// Layout should have {{content}} variable
+func (this *HtmlConnection) RenderInLayout(path, layoutPath string, context map[string]interface{}) {
+	viewsPath := this.ServerConfig.MustString("http.html.view_directory", "")
+	layPath := fmt.Sprintf("%s%s", viewsPath, layoutPath)
+	templatePath := fmt.Sprintf("%s%s", viewsPath, path)
+	this.WriteResponse("text/html", mustache.RenderFileInLayout(templatePath, layPath, context))
+}
+
 func (this *HtmlConnection) Render(path string, context map[string]interface{}) {
 	viewsPath := this.ServerConfig.MustString("http.html.view_directory", "")
 	templatePath := fmt.Sprintf("%s%s", viewsPath, path)
