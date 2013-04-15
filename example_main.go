@@ -29,6 +29,13 @@ func main() {
     }
     cheshire.RegisterHtml("/404", "GET", four04)
 
+    //an example redirect page
+    redirect := func(request *cheshire.Request, conn *cheshire.HtmlConnection) {
+        conn.Redirect("/ping")
+    }
+    cheshire.RegisterHtml("/redirect", "GET", redirect)
+
+
     log.Println("Starting")
     //starts listening on all configured interfaces
     bootstrap.Start()
