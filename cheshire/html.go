@@ -34,6 +34,13 @@ func (this *HtmlConnection) WriteResponse(contentType string, value interface{})
 	this.WriteContent(value)
 }
 
+//Issues a redirect (301) to the url
+func (this *HtmlConnection) Redirect(url string) {
+	this.Writer.Header().Set("Location", url)
+	this.Writer.WriteHeader(301)
+	this.WriteContent("<html><head><title>Moved</title></head><body><h1>Moved</h1><p>This page has moved to <a href=\"%s\">%s</a>.</p></body></html>")
+}
+
 //write out an object 
 //this assumes the header has been written already
 func (this *HtmlConnection) WriteContent(value interface{}) {
