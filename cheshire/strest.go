@@ -12,18 +12,6 @@ const StrestVersion = float32(2)
 // See protocol spec https://github.com/trendrr/strest-server/wiki/STREST-Protocol-Spec
 type Request struct {
 	dynmap.DynMap
-
-	// Strest struct {
-	// 	Version float32        `json:"v"`
-	// 	Method  string         `json:"method"`
-	// 	Uri     string         `json:"uri"`
-	// 	Params  *dynmap.DynMap `json:"params"`
-
-	// 	Txn struct {
-	// 		Id     string `json:"id"`
-	// 		Accept string `json:"accept"`
-	// 	} `json:"txn"`
-	// } `json:"strest"`
 }
 
 // Create a new request object.
