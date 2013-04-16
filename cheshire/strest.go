@@ -174,6 +174,26 @@ type Writer interface {
 	Write(*Response) (int, error)
 }
 
+type Txn struct {
+	Request *Request
+	Writer Writer
+	Session *dynmap.DynMap
+}
+
+// Writes a response to the underlying writer.
+func (this *Txn) Write(response *Response) (int, error) {
+	c,err := this.Writer.Write(response)
+	return c,err
+}
+
+func NewTxn(request *Request, writer Writer) *Txn {
+	return &Txn{
+		Request : request,
+		Writer : writer,
+		Session : dynmap.NewDynMap(),
+	}
+}
+
 type RouteMatcher interface {
 	// A controller matches the given method, path
 	Match(string, string) Controller
