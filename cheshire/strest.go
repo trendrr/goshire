@@ -241,7 +241,7 @@ func (this *ServerConfig) Register(methods []string, controller Controller) {
 type ControllerFilter interface {
 	//This is called before the Controller is called. 
 	//returning false will stop the execution
-	Before(*Request, *Txn) bool
+	Before(*Txn) bool
 
 	//This is called after the controller is called.
 	After(*Response, *Txn)
@@ -274,7 +274,7 @@ func HandleRequest(request *Request, conn Writer, controller Controller, serverC
 
 	//controller Before filters
 	for _,f := range(filters) {
-		ok := f.Before(request, txn)
+		ok := f.Before(txn)
 		if !ok {
 			return
 		}
