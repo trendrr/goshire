@@ -18,13 +18,20 @@ func (this *HtmlConnection) RenderInLayout(path, layoutPath string, context map[
 	viewsPath := this.ServerConfig.MustString("http.html.view_directory", "")
 	layPath := fmt.Sprintf("%s%s", viewsPath, layoutPath)
 	templatePath := fmt.Sprintf("%s%s", viewsPath, path)
-	this.WriteResponse("text/html", mustache.RenderFileInLayout(templatePath, layPath, context))
+	this.WriteResponse("text/html", mustache.RenderFileInLayout(templatePath, layPath, this.context(context)))
 }
 
 func (this *HtmlConnection) Render(path string, context map[string]interface{}) {
 	viewsPath := this.ServerConfig.MustString("http.html.view_directory", "")
 	templatePath := fmt.Sprintf("%s%s", viewsPath, path)
-	this.WriteResponse("text/html", mustache.RenderFile(templatePath, context))
+	this.WriteResponse("text/html", mustache.RenderFile(templatePath, this.context(context)))
+}
+
+//Adds the special variables to the context.
+func (this *HtmlConnection) context(context map[string]interface{}) (map[string]interface{}) {
+	context["request"] = this.Request
+	context["params"] = this.Request.Params().Map
+	return context
 }
 
 func (this *HtmlConnection) WriteResponse(contentType string, value interface{}) {
@@ -91,9 +98,7 @@ func (this *HtmlController) HandleRequest(request *Request, conn Connection) {
 		//TODO: send error
 		return
 	}
-
 	htmlconn := &HtmlConnection{connection}
-
 	handler(request, htmlconn)
 }
 

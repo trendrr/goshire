@@ -12,7 +12,8 @@ import (
 
 type HttpConnection struct {
 	Writer        http.ResponseWriter
-	request       *http.Request
+	HttpRequest       *http.Request
+	Request *Request
 	ServerConfig  *ServerConfig
 	headerWritten sync.Once
 }
@@ -63,7 +64,12 @@ func (this *httpHandler) ServeHTTP(writer http.ResponseWriter, req *http.Request
 	request := ToStrestRequest(req)
 
 	//TODO: filters here..
-	conn := HttpConnection{Writer: writer, request: req, ServerConfig: this.serverConfig}
+	conn := HttpConnection{
+		Writer: writer, 
+		HttpRequest: req,
+		Request: request, 
+		ServerConfig: this.serverConfig,
+	}
 
 	controller.HandleRequest(request, &conn)
 }
