@@ -180,7 +180,7 @@ func newResponse() *Response {
 }
 
 
-type Connection interface {
+type Writer interface {
 	//writes the response to the underlying channel 
 	// i.e. either to an http response writer or json socket.
 	Write(*Response) (int, error)
@@ -217,10 +217,10 @@ func (this *ServerConfig) Register(methods []string, controller Controller) {
 type ControllerFilter interface {
 	//This is called before the Controller is called. 
 	//returning false will stop the execution
-	Before(*Request, Connection) bool
+	Before(*Request, Writer) bool
 
 	//This is called after the controller is called.
-	After(*Request, *Response, Connection)
+	After(*Request, *Response, Writer)
 }
 
 // Configuration for a specific controller.
@@ -236,11 +236,11 @@ func NewControllerConfig(route string) *ControllerConfig {
 // a Controller object
 type Controller interface {
 	Config() *ControllerConfig
-	HandleRequest(*Request, Connection)
+	HandleRequest(*Request, Writer)
 }
 
 // Implements the handle request, does the full filter stack.
-func HandleRequest(request *Request, conn Connection, controller Controller, serverConfig ServerConfig) {
+func HandleRequest(request *Request, conn Writer, controller Controller, serverConfig ServerConfig) {
 
 	//Handle Global Before filters
 	for _,f := range(serverConfig.Filters) {
@@ -263,14 +263,14 @@ func HandleRequest(request *Request, conn Connection, controller Controller, ser
 }
 
 type DefaultController struct {
-	Handlers map[string]func(*Request, Connection)
+	Handlers map[string]func(*Request, Writer)
 	Conf     *ControllerConfig
 }
 
 func (this *DefaultController) Config() *ControllerConfig {
 	return this.Conf
 }
-func (this *DefaultController) HandleRequest(request *Request, conn Connection) {
+func (this *DefaultController) HandleRequest(request *Request, conn Writer) {
 	handler := this.Handlers[request.Method()]
 	if handler == nil {
 		handler = this.Handlers["ALL"]
@@ -284,12 +284,12 @@ func (this *DefaultController) HandleRequest(request *Request, conn Connection) 
 }
 
 // creates a new controller for the specified route for a specific method types (GET, POST, PUT, ect)
-func NewController(route string, methods []string, handler func(*Request, Connection)) *DefaultController {
+func NewController(route string, methods []string, handler func(*Request, Writer)) *DefaultController {
 	// def := new(DefaultController)
 	// def.Conf = NewConfig(route)
 
 	def := &DefaultController{
-		Handlers: make(map[string]func(*Request, Connection)), 
+		Handlers: make(map[string]func(*Request, Writer)), 
 		Conf: NewControllerConfig(route),
 	}
 	for _, m := range methods {
@@ -299,6 +299,6 @@ func NewController(route string, methods []string, handler func(*Request, Connec
 }
 
 // creates a new controller that will process all method types
-func NewControllerAll(route string, handler func(*Request, Connection)) *DefaultController {
+func NewControllerAll(route string, handler func(*Request, Writer)) *DefaultController {
 	return NewController(route, []string{"ALL"}, handler)
 }

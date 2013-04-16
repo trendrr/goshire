@@ -10,7 +10,7 @@ import (
 	"sync"
 )
 
-type HttpConnection struct {
+type HttpWriter struct {
 	Writer        http.ResponseWriter
 	HttpRequest       *http.Request
 	Request *Request
@@ -18,7 +18,7 @@ type HttpConnection struct {
 	headerWritten sync.Once
 }
 
-func (conn *HttpConnection) Write(response *Response) (int, error) {
+func (conn *HttpWriter) Write(response *Response) (int, error) {
 
 	json, err := json.Marshal(response)
 	if err != nil {
@@ -62,12 +62,12 @@ func (this *httpHandler) ServeHTTP(writer http.ResponseWriter, req *http.Request
 
 	//we are already in a go routine, so no need to start another one.
 	request := ToStrestRequest(req)
-	conn := HttpConnection{
+	conn := HttpWriter{
 		Writer: writer, 
-		HttpRequest: req,
-		Request: request, 
+		request: req, 
 		ServerConfig: this.serverConfig,
-	}	
+	}
+
 	controller.HandleRequest(request, &conn)
 }
 

@@ -7,21 +7,21 @@ import (
 	"net/http"
 )
 
-type HtmlConnection struct {
-	*HttpConnection
+type HtmlWriter struct {
+	*HttpWriter
 }
 
 // Renders with a layout template.  
 // 
 // Layout should have {{content}} variable
-func (this *HtmlConnection) RenderInLayout(path, layoutPath string, context map[string]interface{}) {
+func (this *HtmlWriter) RenderInLayout(path, layoutPath string, context map[string]interface{}) {
 	viewsPath := this.ServerConfig.MustString("http.html.view_directory", "")
 	layPath := fmt.Sprintf("%s%s", viewsPath, layoutPath)
 	templatePath := fmt.Sprintf("%s%s", viewsPath, path)
 	this.WriteResponse("text/html", mustache.RenderFileInLayout(templatePath, layPath, this.context(context)))
 }
 
-func (this *HtmlConnection) Render(path string, context map[string]interface{}) {
+func (this *HtmlWriter) Render(path string, context map[string]interface{}) {
 	viewsPath := this.ServerConfig.MustString("http.html.view_directory", "")
 	templatePath := fmt.Sprintf("%s%s", viewsPath, path)
 	this.WriteResponse("text/html", mustache.RenderFile(templatePath, this.context(context)))
@@ -34,7 +34,7 @@ func (this *HtmlConnection) context(context map[string]interface{}) (map[string]
 	return context
 }
 
-func (this *HtmlConnection) WriteResponse(contentType string, value interface{}) {
+func (this *HtmlWriter) WriteResponse(contentType string, value interface{}) {
 
 	this.Writer.Header().Set("Content-Type", contentType)
 	this.Writer.WriteHeader(200)
@@ -42,7 +42,7 @@ func (this *HtmlConnection) WriteResponse(contentType string, value interface{})
 }
 
 //Issues a redirect (301) to the url
-func (this *HtmlConnection) Redirect(url string) {
+func (this *HtmlWriter) Redirect(url string) {
 	this.Writer.Header().Set("Location", url)
 	this.Writer.WriteHeader(301)
 	this.WriteContent("<html><head><title>Moved</title></head><body><h1>Moved</h1><p>This page has moved to <a href=\"%s\">%s</a>.</p></body></html>")
@@ -50,7 +50,7 @@ func (this *HtmlConnection) Redirect(url string) {
 
 //write out an object 
 //this assumes the header has been written already
-func (this *HtmlConnection) WriteContent(value interface{}) {
+func (this *HtmlWriter) WriteContent(value interface{}) {
 	switch v := value.(type) {
 	case string:
 		this.Writer.Write([]byte(v))
@@ -63,12 +63,12 @@ func (this *HtmlConnection) WriteContent(value interface{}) {
 }
 
 type HtmlController struct {
-	Handlers map[string]func(*Request, *HtmlConnection)
+	Handlers map[string]func(*Request, *HtmlWriter)
 	Conf     *ControllerConfig
 }
 
-func NewHtmlController(route string, methods []string, handler func(*Request, *HtmlConnection)) *HtmlController {
-	def := &HtmlController{Handlers: make(map[string]func(*Request, *HtmlConnection)), Conf: NewControllerConfig(route)}
+func NewHtmlController(route string, methods []string, handler func(*Request, *HtmlWriter)) *HtmlController {
+	def := &HtmlController{Handlers: make(map[string]func(*Request, *HtmlWriter)), Conf: NewControllerConfig(route)}
 	for _, m := range methods {
 		def.Handlers[m] = handler
 	}
@@ -79,7 +79,7 @@ func (this *HtmlController) Config() *ControllerConfig {
 	return this.Conf
 }
 
-func (this *HtmlController) HandleRequest(request *Request, conn Connection) {
+func (this *HtmlController) HandleRequest(request *Request, conn Writer) {
 	handler := this.Handlers[request.Method()]
 	if handler == nil {
 		handler = this.Handlers["ALL"]
@@ -91,14 +91,14 @@ func (this *HtmlController) HandleRequest(request *Request, conn Connection) {
 		return
 	}
 
-	connection, ok := conn.(*HttpConnection)
+	connection, ok := conn.(*HttpWriter)
 	if !ok {
 		log.Println("not an http connection")
 		//not an http connect
 		//TODO: send error
 		return
 	}
-	htmlconn := &HtmlConnection{connection}
+	htmlconn := &HtmlWriter{connection}
 	handler(request, htmlconn)
 }
 
@@ -120,7 +120,7 @@ func (this *StaticFileController) Config() *ControllerConfig {
 	return this.Conf
 }
 
-func (this StaticFileController) HandleRequest(*Request, Connection) {
+func (this StaticFileController) HandleRequest(*Request, Writer) {
 	//Empty method, this is never called because we have the HttpHijack method in place
 }
 

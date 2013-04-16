@@ -38,7 +38,7 @@ type WebsocketController struct {
 func (wc WebsocketController) Config() *ControllerConfig {
 	return wc.Conf
 }
-func (wc WebsocketController) HandleRequest(*Request, Connection) {
+func (wc WebsocketController) HandleRequest(*Request, Writer) {
 	//do nothing, this should never be called. 
 }
 
