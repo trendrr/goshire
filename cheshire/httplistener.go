@@ -18,6 +18,10 @@ type HttpWriter struct {
 	headerWritten sync.Once
 }
 
+func (this *HttpWriter) Type() string {
+	return "http"
+}
+
 func (conn *HttpWriter) Write(response *Response) (int, error) {
 
 	json, err := json.Marshal(response)

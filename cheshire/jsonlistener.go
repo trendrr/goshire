@@ -17,16 +17,21 @@ type JsonWriter struct {
 	writerLock   sync.Mutex
 }
 
-func (conn JsonWriter) Write(response *Response) (int, error) {
+func (this *JsonWriter) Write(response *Response) (int, error) {
 	json, err := json.Marshal(response)
 	if err != nil {
 		//TODO: uhh, do something..
 		log.Print(err)
 	}
-	defer conn.writerLock.Unlock()
-	conn.writerLock.Lock()
-	bytes, err := conn.conn.Write(json)
+	defer this.writerLock.Unlock()
+	this.writerLock.Lock()
+	bytes, err := this.conn.Write(json)
 	return bytes, err
+}
+
+
+func (this *JsonWriter) Type() string {
+	return "json"
 }
 
 func JsonListen(port int, config *ServerConfig) error {
@@ -44,12 +49,12 @@ func JsonListen(port int, config *ServerConfig) error {
 			// handle error
 			continue
 		}
-		go handleConnection(JsonWriter{serverConfig: config, conn: conn})
+		go handleConnection(&JsonWriter{serverConfig: config, conn: conn})
 	}
 	return nil
 }
 
-func handleConnection(conn JsonWriter) {
+func handleConnection(conn *JsonWriter) {
 	defer conn.conn.Close()
 	// log.Print("CONNECT!")
 

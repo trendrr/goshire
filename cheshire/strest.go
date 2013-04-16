@@ -174,6 +174,10 @@ type Writer interface {
 	// implementers should make sure that this method is threadsafe as the 
 	// Writer may be shared across go routines.
 	Write(*Response) (int, error)
+
+	//What type of writer is this?
+	//Examples: http,json,websocket
+	Type() string
 }
 
 // Represents a single transaction.  This wraps the underlying Writer, and
@@ -199,6 +203,12 @@ func (this *Txn) Write(response *Response) (int, error) {
 		f.After(response, this)
 	}
 	return c,err
+}
+
+//Returns the connection type.
+//currently will be one of http,json,websocket
+func (this *Txn) ConnectionType() string {
+	return this.Writer.Type()
 }
 
 func NewTxn(request *Request, writer Writer, filters []ControllerFilter) *Txn {
