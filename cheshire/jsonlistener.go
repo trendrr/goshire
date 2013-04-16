@@ -11,13 +11,13 @@ import (
 	// "github.com/trendrr/cheshire-golang/dynmap"
 )
 
-type JsonConnection struct {
+type JsonWriter struct {
 	serverConfig *ServerConfig
 	conn         net.Conn
 	writerLock   sync.Mutex
 }
 
-func (conn JsonConnection) Write(response *Response) (int, error) {
+func (conn JsonWriter) Write(response *Response) (int, error) {
 	json, err := json.Marshal(response)
 	if err != nil {
 		//TODO: uhh, do something..
@@ -44,12 +44,12 @@ func JsonListen(port int, config *ServerConfig) error {
 			// handle error
 			continue
 		}
-		go handleConnection(JsonConnection{serverConfig: config, conn: conn})
+		go handleConnection(JsonWriter{serverConfig: config, conn: conn})
 	}
 	return nil
 }
 
-func handleConnection(conn JsonConnection) {
+func handleConnection(conn JsonWriter) {
 	defer conn.conn.Close()
 	// log.Print("CONNECT!")
 
