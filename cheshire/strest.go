@@ -171,26 +171,42 @@ func newResponse() *Response {
 type Writer interface {
 	//writes the response to the underlying channel 
 	// i.e. either to an http response writer or json socket.
+	// implementers should make sure that this method is threadsafe as the 
+	// Writer may be shared across go routines.
 	Write(*Response) (int, error)
 }
 
+// Represents a single transaction.  This wraps the underlying Writer, and
+// allows saving of session state ect.
 type Txn struct {
 	Request *Request
+
+	//writer should be threadsafe
 	Writer Writer
+
+	//Session is not currently threadsafe
 	Session *dynmap.DynMap
+
+	//The filters that will be run on this txn
+	Filters []ControllerFilter
 }
 
 // Writes a response to the underlying writer.
 func (this *Txn) Write(response *Response) (int, error) {
 	c,err := this.Writer.Write(response)
+	//Call the after filters.
+	for _, f := range(this.Filters) {
+		f.After(response, this)
+	}
 	return c,err
 }
 
-func NewTxn(request *Request, writer Writer) *Txn {
+func NewTxn(request *Request, writer Writer, filters []ControllerFilter) *Txn {
 	return &Txn{
 		Request : request,
 		Writer : writer,
 		Session : dynmap.NewDynMap(),
+		Filters : filters,
 	}
 }
 
@@ -225,10 +241,10 @@ func (this *ServerConfig) Register(methods []string, controller Controller) {
 type ControllerFilter interface {
 	//This is called before the Controller is called. 
 	//returning false will stop the execution
-	Before(*Request, Writer) bool
+	Before(*Request, *Txn) bool
 
 	//This is called after the controller is called.
-	After(*Request, *Response, Writer)
+	After(*Response, *Txn)
 }
 
 // Configuration for a specific controller.
@@ -250,24 +266,20 @@ type Controller interface {
 // Implements the handle request, does the full filter stack.
 func HandleRequest(request *Request, conn Writer, controller Controller, serverConfig ServerConfig) {
 
-	//Handle Global Before filters
-	for _,f := range(serverConfig.Filters) {
-		ok := f.Before(request, conn)
+	//slice of all the filters
+	filters := append(make([]ControllerFilter,0), serverConfig.Filters...)
+	filters = append(filters, controller.Config().Filters...)
+	//wrap the writer in a Txn
+	txn := NewTxn(request, conn, filters)
+
+	//controller Before filters
+	for _,f := range(filters) {
+		ok := f.Before(request, txn)
 		if !ok {
 			return
 		}
 	}
-	//controller local Before filters
-	for _,f := range(controller.Config().Filters) {
-		ok := f.Before(request, conn)
-		if !ok {
-			return
-		}	
-	}
-	controller.HandleRequest(request, conn)
-	//TODO: need to get ahold of the response object, if available..
-
-
+	controller.HandleRequest(request, txn)
 }
 
 type DefaultController struct {
