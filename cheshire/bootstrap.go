@@ -91,12 +91,16 @@ type controllerWrapper struct {
 
 // Registers a controller funtion for api calls 
 func RegisterApi(route string, method string, handler func(*Request, Writer), filters ...ControllerFilter) {
-	Register([]string{method}, NewController(route, []string{method}, handler))
+	controller := NewController(route, []string{method}, handler)
+	controller.Config().Filters = filters
+	Register([]string{method}, controller)
 }
 
 // Registers a controller function for html pages  
 func RegisterHtml(route string, method string, handler func(*Request, *HtmlWriter), filters ...ControllerFilter) {
-	Register([]string{method}, NewHtmlController(route, []string{method}, handler))
+	controller := NewHtmlController(route, []string{method}, handler)
+	controller.Config().Filters = filters
+	Register([]string{method}, controller)
 }
 
 // Registers a new controller
