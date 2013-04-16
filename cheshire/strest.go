@@ -195,11 +195,16 @@ type RouteMatcher interface {
 type ServerConfig struct {
 	*dynmap.DynMap
 	Router RouteMatcher
+	Filters []ControllerFilter
 }
 
 // Creates a new server config with a default routematcher
 func NewServerConfig() *ServerConfig {
-	return &ServerConfig{dynmap.NewDynMap(), NewDefaultRouter()}
+	return &ServerConfig{
+		dynmap.NewDynMap(), 
+		NewDefaultRouter(),
+		make([]ControllerFilter, 0),
+	}
 }
 
 // Registers a controller with the RouteMatcher.  
@@ -209,9 +214,19 @@ func (this *ServerConfig) Register(methods []string, controller Controller) {
 	this.Router.Register(methods, controller)
 }
 
+type ControllerFilter interface {
+	//This is called before the Controller is called. 
+	//returning false will stop the execution
+	Before(*Request, Connection) bool
+
+	//This is called after the controller is called.
+	After(*Request, *Response, Connection)
+}
+
 // Configuration for a specific controller.
 type ControllerConfig struct {
 	Route string
+	Filters []ControllerFilter
 }
 
 func NewControllerConfig(route string) *ControllerConfig {
@@ -222,6 +237,29 @@ func NewControllerConfig(route string) *ControllerConfig {
 type Controller interface {
 	Config() *ControllerConfig
 	HandleRequest(*Request, Connection)
+}
+
+// Implements the handle request, does the full filter stack.
+func HandleRequest(request *Request, conn Connection, controller Controller, serverConfig ServerConfig) {
+
+	//Handle Global Before filters
+	for _,f := range(serverConfig.Filters) {
+		ok := f.Before(request, conn)
+		if !ok {
+			return
+		}
+	}
+	//controller local Before filters
+	for _,f := range(controller.Config().Filters) {
+		ok := f.Before(request, conn)
+		if !ok {
+			return
+		}	
+	}
+	controller.HandleRequest(request, conn)
+	//TODO: need to get ahold of the response object, if available..
+
+
 }
 
 type DefaultController struct {
@@ -250,7 +288,10 @@ func NewController(route string, methods []string, handler func(*Request, Connec
 	// def := new(DefaultController)
 	// def.Conf = NewConfig(route)
 
-	def := &DefaultController{Handlers: make(map[string]func(*Request, Connection)), Conf: NewControllerConfig(route)}
+	def := &DefaultController{
+		Handlers: make(map[string]func(*Request, Connection)), 
+		Conf: NewControllerConfig(route),
+	}
 	for _, m := range methods {
 		def.Handlers[m] = handler
 	}

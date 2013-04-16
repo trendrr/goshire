@@ -62,15 +62,12 @@ func (this *httpHandler) ServeHTTP(writer http.ResponseWriter, req *http.Request
 
 	//we are already in a go routine, so no need to start another one.
 	request := ToStrestRequest(req)
-
-	//TODO: filters here..
 	conn := HttpConnection{
 		Writer: writer, 
 		HttpRequest: req,
 		Request: request, 
 		ServerConfig: this.serverConfig,
-	}
-
+	}	
 	controller.HandleRequest(request, &conn)
 }
 

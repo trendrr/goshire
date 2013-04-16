@@ -73,6 +73,12 @@ func (this *Bootstrap) InitControllers() {
 	}
 }
 
+func (this *Bootstrap) AddFilters(filters ...ControllerFilter) {
+	for _,f := range(filters) {
+		this.Conf.Filters = append(this.Conf.Filters, f)
+	}
+}
+
 //
 // a queue of controllers so we can register controllers 
 // before the bootstrap is initialized
@@ -84,12 +90,12 @@ type controllerWrapper struct {
 }
 
 // Registers a controller funtion for api calls 
-func RegisterApi(route string, method string, handler func(*Request, Connection)) {
+func RegisterApi(route string, method string, handler func(*Request, Connection), filters ...ControllerFilter) {
 	Register([]string{method}, NewController(route, []string{method}, handler))
 }
 
 // Registers a controller function for html pages  
-func RegisterHtml(route string, method string, handler func(*Request, *HtmlConnection)) {
+func RegisterHtml(route string, method string, handler func(*Request, *HtmlConnection), filters ...ControllerFilter) {
 	Register([]string{method}, NewHtmlController(route, []string{method}, handler))
 }
 
@@ -97,6 +103,8 @@ func RegisterHtml(route string, method string, handler func(*Request, *HtmlConne
 func Register(methods []string, controller Controller) {
 	registerQueue = append(registerQueue, controllerWrapper{controller, methods})
 }
+
+
 
 func NewBootstrapFile(configPath string) *Bootstrap {
 	conf := NewServerConfigFile(configPath)
