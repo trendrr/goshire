@@ -14,6 +14,13 @@ type Request struct {
 	dynmap.DynMap
 }
 
+
+// Makes it simple to create a new response from
+// anything implementing this interface
+type RequestTxnId interface {
+	TxnId() string
+}
+
 // Create a new request object.
 // Values are all set to defaults
 func NewRequest(uri, method string) *Request {
@@ -89,20 +96,7 @@ func (this *Request) SetTxnAcceptSingle() {
 	this.SetTxnAccept("single");
 }
 
-// Creates a new response based on this request.
-// auto fills the txn id
-func (this *Request) NewResponse() *Response {
-	response := newResponse()
-	response.SetTxnId(this.TxnId())
-	return response
-}
 
-
-func (this *Request) NewError(code int, message string) *Response {
-	response := this.NewResponse()
-	response.SetStatus(code, message)
-	return response
-}
 
 
 // Standard STREST response
@@ -195,6 +189,10 @@ type Txn struct {
 	Filters []ControllerFilter
 }
 
+func (this *Txn) TxnId() string {
+	return this.Request.TxnId()
+}
+
 // Writes a response to the underlying writer.
 func (this *Txn) Write(response *Response) (int, error) {
 	c,err := this.Writer.Write(response)
@@ -206,8 +204,8 @@ func (this *Txn) Write(response *Response) (int, error) {
 }
 
 //Returns the connection type.
-//currently will be one of http,json,websocket
-func (this *Txn) ConnectionType() string {
+//currently will be one of http,html,json,websocket
+func (this *Txn) Type() string {
 	return this.Writer.Type()
 }
 

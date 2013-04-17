@@ -11,6 +11,10 @@ type HtmlWriter struct {
 	*HttpWriter
 }
 
+func (this *HtmlWriter) Type() string {
+	return "html"
+}
+
 // Renders with a layout template.  
 // 
 // Layout should have {{content}} variable
@@ -68,11 +72,15 @@ type HtmlController struct {
 }
 
 func NewHtmlController(route string, methods []string, handler func(*Request, *HtmlWriter)) *HtmlController {
-	def := &HtmlController{Handlers: make(map[string]func(*Request, *HtmlWriter)), Conf: NewControllerConfig(route)}
-	for _, m := range methods {
-		def.Handlers[m] = handler
+	controller := &HtmlController{
+		Handlers: make(map[string]func(*Request, *HtmlWriter)), 
+		Conf: NewControllerConfig(route),
 	}
-	return def
+
+	for _, m := range methods {
+		controller.Handlers[m] = handler
+	}
+	return controller
 }
 
 func (this *HtmlController) Config() *ControllerConfig {
