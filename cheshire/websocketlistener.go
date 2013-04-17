@@ -55,7 +55,7 @@ func NewWebsocketController(route string, config *ServerConfig) WebsocketControl
 }
 
 // implements the HttpHijacker interface so we can handle the request directly.
-func (this *WebsocketController) HttpHijack(writer http.ResponseWriter, req *http.Request) {
+func (this *WebsocketController) HttpHijack(writer http.ResponseWriter, req *http.Request, serverConfig *ServerConfig) {
 	this.Handler.ServeHTTP(writer, req)
 }
 

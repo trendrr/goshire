@@ -53,10 +53,12 @@ func (h *DefaultNotFoundHandler) HandleRequest(req *Request, conn Writer) {
 
 // NewServeMux allocates and returns a new CheshireMux.
 func NewDefaultRouter() *Router {
-	router := &Router{gets: make(map[string]muxEntry),
-		posts:   make(map[string]muxEntry),
-		deletes: make(map[string]muxEntry),
-		puts:    make(map[string]muxEntry)}
+	router := &Router{
+			gets: make(map[string]muxEntry),
+			posts:   make(map[string]muxEntry),
+			deletes: make(map[string]muxEntry),
+			puts:    make(map[string]muxEntry),
+		}
 	router.NotFoundHandler = new(DefaultNotFoundHandler)
 	return router
 }

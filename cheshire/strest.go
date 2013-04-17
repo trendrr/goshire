@@ -189,6 +189,10 @@ type Txn struct {
 	Filters []ControllerFilter
 }
 
+func (this *Txn) Params() *dynmap.DynMap {
+	return this.Request.Params()
+}
+
 func (this *Txn) TxnId() string {
 	return this.Request.TxnId()
 }
@@ -262,7 +266,10 @@ type ControllerConfig struct {
 }
 
 func NewControllerConfig(route string) *ControllerConfig {
-	return &ControllerConfig{Route: route}
+	return &ControllerConfig{
+		Route: route,
+		Filters: make([]ControllerFilter, 0),
+	}
 }
 
 // a Controller object
@@ -272,11 +279,14 @@ type Controller interface {
 }
 
 // Implements the handle request, does the full filter stack.
-func HandleRequest(request *Request, conn Writer, controller Controller, serverConfig ServerConfig) {
+func HandleRequest(request *Request, conn Writer, controller Controller, serverConfig *ServerConfig) {
 
 	//slice of all the filters
 	filters := append(make([]ControllerFilter,0), serverConfig.Filters...)
-	filters = append(filters, controller.Config().Filters...)
+	if controller.Config() != nil {
+		filters = append(filters, controller.Config().Filters...)	
+	}
+
 	//wrap the writer in a Txn
 	txn := NewTxn(request, conn, filters)
 

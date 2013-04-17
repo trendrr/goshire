@@ -51,7 +51,7 @@ type httpHandler struct {
 // This should be only used in special cases (static file serving, websockets, ect)
 // controllers that implement this interface will skip the HandleRequest function alltogether
 type HttpHijacker interface {
-	HttpHijack(writer http.ResponseWriter, req *http.Request)
+	HttpHijack(writer http.ResponseWriter, req *http.Request, serverConfig *ServerConfig)
 }
 
 func (this *httpHandler) ServeHTTP(writer http.ResponseWriter, req *http.Request) {
@@ -60,19 +60,29 @@ func (this *httpHandler) ServeHTTP(writer http.ResponseWriter, req *http.Request
 	//check if controller is the special HttpHijacker.
 	h, hijack := controller.(HttpHijacker)
 	if hijack {
-		h.HttpHijack(writer, req)
+		h.HttpHijack(writer, req, this.serverConfig)
 		return
 	}
 
 	//we are already in a go routine, so no need to start another one.
 	request := ToStrestRequest(req)
+<<<<<<< HEAD
 	conn := HttpWriter{
+=======
+
+	conn := &HttpWriter{
+>>>>>>> more refactoring, have html controller hijack the request so we can use a custom writer
 		Writer: writer, 
 		request: req, 
 		ServerConfig: this.serverConfig,
 	}
+<<<<<<< HEAD
 
 	controller.HandleRequest(request, &conn)
+=======
+	log.Println(controller)
+	HandleRequest(request, conn, controller, this.serverConfig)
+>>>>>>> more refactoring, have html controller hijack the request so we can use a custom writer
 }
 
 func ToStrestRequest(req *http.Request) *Request {

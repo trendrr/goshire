@@ -87,6 +87,20 @@ func (this *HtmlController) Config() *ControllerConfig {
 	return this.Conf
 }
 
+// We hijack the request so we can use the html writer instead of the regular http writer.
+// mostly this is so the filters know this is of type="html" 
+func (this *HtmlController) HttpHijack(writer http.ResponseWriter, req *http.Request, serverConfig *ServerConfig) {
+	request := ToStrestRequest(req)
+	conn := &HtmlWriter{
+		&HttpWriter{
+			Writer: writer, 
+			request: req, 
+			ServerConfig: serverConfig,
+		},
+	}
+	HandleRequest(request, conn, this, serverConfig)
+}
+
 func (this *HtmlController) HandleRequest(request *Request, conn Writer) {
 	handler := this.Handlers[request.Method()]
 	if handler == nil {
@@ -99,17 +113,14 @@ func (this *HtmlController) HandleRequest(request *Request, conn Writer) {
 		return
 	}
 
-	connection, ok := conn.(*HttpWriter)
-	if !ok {
-		log.Println("not an http connection")
-		//not an http connect
-		//TODO: send error
-		return
-	}
 	htmlconn := &HtmlWriter{connection}
-	handler(request, htmlconn)
+	handler(request, htmlcon)
 }
 
+
+// Allows us to use the fast static file handler built into golang standard lib
+// Note that this skips the cheshire lifecycle so no middleware filters will be
+// executed.
 type StaticFileController struct {
 	Route   string
 	Path    string
