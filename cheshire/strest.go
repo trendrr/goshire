@@ -155,6 +155,27 @@ func newResponse() *Response {
 	return response
 }
 
+
+// A generic cache.
+type Cache interface {
+    Set(key string, value []byte, expireSeconds int)
+
+    // Sets the value if and only if there is no value associated with this key
+    SetIfAbsent(key string, value []byte, expireSeconds int) bool 
+    
+    // Deletes the value at the requested key
+    Delete(key string) bool
+
+    // Gets the value at the requested key
+    Get(key string) ([]byte, bool)
+
+    // Increment the key by val (val is allowed to be negative)
+    // in most implementation expireSeconds will be from the first increment, but users should not count on that.
+    // if no value is a present it should be added.  
+    // If a value is present which is not a number an error should be returned.
+    Inc(key string, val int64, expireSeconds int) (int64, error)
+}
+
 type Writer interface {
 	//writes the response to the underlying channel 
 	// i.e. either to an http response writer or json socket.
