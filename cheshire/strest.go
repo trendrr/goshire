@@ -164,7 +164,7 @@ type Cache interface {
     SetIfAbsent(key string, value []byte, expireSeconds int) bool 
     
     // Deletes the value at the requested key
-    Delete(key string) bool
+    Delete(key string)
 
     // Gets the value at the requested key
     Get(key string) ([]byte, bool)
