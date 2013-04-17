@@ -69,7 +69,8 @@ func (this *httpHandler) ServeHTTP(writer http.ResponseWriter, req *http.Request
 
 	conn := &HttpWriter{
 		Writer:       writer,
-		request:      req,
+		HttpRequest:      req,
+		Request: request,
 		ServerConfig: this.serverConfig,
 	}
 	HandleRequest(request, conn, controller, this.serverConfig)

@@ -22,21 +22,20 @@ func RenderInLayout(txn *Txn, path, layoutPath string, context map[string]interf
 	viewsPath := txn.ServerConfig.MustString("http.html.view_directory", "")
 	layPath := fmt.Sprintf("%s%s", viewsPath, layoutPath)
 	templatePath := fmt.Sprintf("%s%s", viewsPath, path)
-	writeResponse(txn, "text/html", mustache.RenderFileInLayout(templatePath, layPath, context))
+	writeResponse(txn, "text/html", mustache.RenderFileInLayout(templatePath, layPath, contxt(txn, context)))
 }
 
 func Render(txn *Txn, path string, context map[string]interface{}) {
 	viewsPath := txn.ServerConfig.MustString("http.html.view_directory", "")
 	templatePath := fmt.Sprintf("%s%s", viewsPath, path)
-	this.WriteResponse("text/html", mustache.RenderFile(templatePath, this.context(context)))
+	writeResponse(txn, "text/html", mustache.RenderFile(templatePath, contxt(txn, context)))
 }
 
 //Adds the special variables to the context.
-func (this *HtmlConnection) context(context map[string]interface{}) (map[string]interface{}) {
-	context["request"] = this.Request
-	context["params"] = this.Request.Params().Map
+func contxt(txn *Txn, context map[string]interface{}) (map[string]interface{}) {
+	context["request"] = txn.Request
+	context["params"] = txn.Request.Params().Map
 	return context
-	writeResponse(txn, "text/html", mustache.RenderFile(templatePath, context))
 }
 
 func writeResponse(txn *Txn, contentType string, value interface{}) {
@@ -114,7 +113,8 @@ func (this *HtmlController) HttpHijack(writer http.ResponseWriter, req *http.Req
 	conn := &HtmlWriter{
 		&HttpWriter{
 			Writer:       writer,
-			request:      req,
+			HttpRequest:      req,
+			Request: request,
 			ServerConfig: serverConfig,
 		},
 	}
