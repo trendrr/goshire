@@ -66,26 +66,13 @@ func (this *httpHandler) ServeHTTP(writer http.ResponseWriter, req *http.Request
 
 	//we are already in a go routine, so no need to start another one.
 	request := ToStrestRequest(req)
-<<<<<<< HEAD
-	conn := HttpWriter{
-=======
 
 	conn := &HttpWriter{
->>>>>>> more refactoring, have html controller hijack the request so we can use a custom writer
-		Writer: writer, 
-		request: req, 
+		Writer:       writer,
+		request:      req,
 		ServerConfig: this.serverConfig,
 	}
-<<<<<<< HEAD
-<<<<<<< HEAD
-
-	controller.HandleRequest(request, &conn)
-=======
-	log.Println(controller)
-=======
->>>>>>> massive refactor, controllers take txn instead of writer and request.
 	HandleRequest(request, conn, controller, this.serverConfig)
->>>>>>> more refactoring, have html controller hijack the request so we can use a custom writer
 }
 
 func ToStrestRequest(req *http.Request) *Request {

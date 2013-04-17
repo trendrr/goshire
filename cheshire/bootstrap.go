@@ -74,7 +74,7 @@ func (this *Bootstrap) InitControllers() {
 }
 
 func (this *Bootstrap) AddFilters(filters ...ControllerFilter) {
-	for _,f := range(filters) {
+	for _, f := range filters {
 		this.Conf.Filters = append(this.Conf.Filters, f)
 	}
 }
@@ -107,8 +107,6 @@ func RegisterHtml(route string, method string, handler func(*Txn), filters ...Co
 func Register(methods []string, controller Controller) {
 	registerQueue = append(registerQueue, controllerWrapper{controller, methods})
 }
-
-
 
 func NewBootstrapFile(configPath string) *Bootstrap {
 	conf := NewServerConfigFile(configPath)

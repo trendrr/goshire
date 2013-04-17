@@ -28,7 +28,6 @@ func (this *WebsocketWriter) Write(response *Response) (int, error) {
 	return bytes, err
 }
 
-
 func (this *WebsocketWriter) Type() string {
 	return "websocket"
 }

@@ -29,7 +29,6 @@ func (this *JsonWriter) Write(response *Response) (int, error) {
 	return bytes, err
 }
 
-
 func (this *JsonWriter) Type() string {
 	return "json"
 }

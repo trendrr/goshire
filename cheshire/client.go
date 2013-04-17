@@ -9,11 +9,11 @@ import (
 	"io/ioutil"
 	"log"
 	"net"
+	"net/http"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
-	"net/http"
-	"strings"
 )
 
 var strestId int64 = int64(0)
@@ -23,7 +23,6 @@ func NewTxnId() string {
 	id := atomic.AddInt64(&strestId, int64(1))
 	return fmt.Sprintf("go%d", id)
 }
-
 
 type Client interface {
 	// Does a synchronous api call.  times out after the requested timeout.
@@ -40,7 +39,7 @@ type HttpClient struct {
 	Address string
 }
 
-func NewHttpClient(address string) *HttpClient{
+func NewHttpClient(address string) *HttpClient {
 	return &HttpClient{
 		Address: address,
 	}
@@ -59,11 +58,11 @@ func (this *HttpClient) ApiCall(req *Request, responseChan chan *Response, error
 		} else {
 			responseChan <- res
 		}
-		}()
+	}()
 }
 
 func (this *HttpClient) ApiCallSync(req *Request, timeout time.Duration) (*Response, error) {
-	uri := req.Uri() 
+	uri := req.Uri()
 	pms, err := req.Params().MarshalURL()
 	if err != nil {
 		return nil, err
@@ -106,7 +105,6 @@ func (this *HttpClient) ApiCallSync(req *Request, timeout time.Duration) (*Respo
 	return response, nil
 }
 
-
 type JsonClient struct {
 	Host     string
 	Port     int
@@ -126,8 +124,8 @@ func NewJsonClient(host string, port int) (*JsonClient, error) {
 		Port:           port,
 		isClosed:       false,
 		disconnectChan: make(chan *cheshireConn),
-		exitChan: make(chan int),
-        PingUri:        "/ping",
+		exitChan:       make(chan int),
+		PingUri:        "/ping",
 	}
 	conn, err := client.createConn()
 	if err != nil {
@@ -141,8 +139,8 @@ func NewJsonClient(host string, port int) (*JsonClient, error) {
 
 //Close this client.
 func (this *JsonClient) Close() {
-    this.exitChan <- 1
-    log.Println("Send exit message")
+	this.exitChan <- 1
+	log.Println("Send exit message")
 }
 
 func (this *JsonClient) createConn() (*cheshireConn, error) {
@@ -208,7 +206,7 @@ func (this *JsonClient) eventLoop() {
 		select {
 		case <-this.exitChan:
 			log.Println("Exiting Client")
-            //close all connections
+			//close all connections
 			this.conn.Close()
 			this.isClosed = true
 			break
@@ -238,7 +236,7 @@ func (this *JsonClient) eventLoop() {
 // Does a synchronous api call.  times out after the requested timeout.
 // This will automatically set the txn accept to single
 func (this *JsonClient) ApiCallSync(req *Request, timeout time.Duration) (*Response, error) {
-    req.SetTxnAccept("single")
+	req.SetTxnAccept("single")
 	response, _, err := this.doApiCallSync(req, timeout)
 	return response, err
 }

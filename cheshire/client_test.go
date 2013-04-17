@@ -7,29 +7,28 @@ import (
 )
 
 func TestHttpClient(t *testing.T) {
-    client := NewHttpClient("localhost:8010")
-    res, err := client.ApiCallSync(NewRequest("/ping", "GET"), 10*time.Second)
-    log.Println(res)
-    if err != nil {
-        t.Errorf("error %s", err)
-    }
+	client := NewHttpClient("localhost:8010")
+	res, err := client.ApiCallSync(NewRequest("/ping", "GET"), 10*time.Second)
+	log.Println(res)
+	if err != nil {
+		t.Errorf("error %s", err)
+	}
 }
 
 func TestJsonClient(t *testing.T) {
-    client, err := NewJsonClient("localhost", 8009)
-    if err != nil {
-        log.Println(err)
-        return
-    }
-    defer client.Close()
+	client, err := NewJsonClient("localhost", 8009)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	defer client.Close()
 
-    res, err := client.ApiCallSync(NewRequest("/ping", "GET"), 10*time.Second)
-    log.Println(res)
-    if err != nil {
-        t.Errorf("error %s", err)
-    }
+	res, err := client.ApiCallSync(NewRequest("/ping", "GET"), 10*time.Second)
+	log.Println(res)
+	if err != nil {
+		t.Errorf("error %s", err)
+	}
 }
-
 
 //go test -v github.com/trendrr/cheshire-golang/cheshire
 // func TestClient(t *testing.T) {

@@ -14,7 +14,6 @@ type Request struct {
 	dynmap.DynMap
 }
 
-
 // Makes it simple to create a new response from
 // anything implementing this interface
 type RequestTxnId interface {
@@ -33,11 +32,9 @@ func NewRequest(uri, method string) *Request {
 	return request
 }
 
-
 func (this *Request) ToDynMap() *dynmap.DynMap {
 	return &this.DynMap
 }
-
 
 func (this *Request) Method() string {
 	return this.MustString("strest.method", "")
@@ -88,16 +85,13 @@ func (this *Request) SetTxnAccept(accept string) {
 
 //This request will accept multiple responses
 func (this *Request) SetTxnAcceptMulti() {
-	this.SetTxnAccept("multi");
+	this.SetTxnAccept("multi")
 }
 
 //This request will only accept a single response
 func (this *Request) SetTxnAcceptSingle() {
-	this.SetTxnAccept("single");
+	this.SetTxnAccept("single")
 }
-
-
-
 
 // Standard STREST response
 // See protocol spec https://github.com/trendrr/strest-server/wiki/STREST-Protocol-Spec
@@ -161,7 +155,6 @@ func newResponse() *Response {
 	return response
 }
 
-
 type Writer interface {
 	//writes the response to the underlying channel 
 	// i.e. either to an http response writer or json socket.
@@ -202,12 +195,12 @@ func (this *Txn) TxnId() string {
 
 // Writes a response to the underlying writer.
 func (this *Txn) Write(response *Response) (int, error) {
-	c,err := this.Writer.Write(response)
+	c, err := this.Writer.Write(response)
 	//Call the after filters.
-	for _, f := range(this.Filters) {
+	for _, f := range this.Filters {
 		f.After(response, this)
 	}
-	return c,err
+	return c, err
 }
 
 //Returns the connection type.
@@ -218,11 +211,11 @@ func (this *Txn) Type() string {
 
 func NewTxn(request *Request, writer Writer, filters []ControllerFilter, serverConfig *ServerConfig) *Txn {
 	return &Txn{
-		Request : request,
-		Writer : writer,
-		Session : dynmap.NewDynMap(),
-		Filters : filters,
-		ServerConfig : serverConfig,
+		Request:      request,
+		Writer:       writer,
+		Session:      dynmap.NewDynMap(),
+		Filters:      filters,
+		ServerConfig: serverConfig,
 	}
 }
 
@@ -234,14 +227,14 @@ type RouteMatcher interface {
 }
 type ServerConfig struct {
 	*dynmap.DynMap
-	Router RouteMatcher
+	Router  RouteMatcher
 	Filters []ControllerFilter
 }
 
 // Creates a new server config with a default routematcher
 func NewServerConfig() *ServerConfig {
 	return &ServerConfig{
-		dynmap.NewDynMap(), 
+		dynmap.NewDynMap(),
 		NewDefaultRouter(),
 		make([]ControllerFilter, 0),
 	}
@@ -265,13 +258,13 @@ type ControllerFilter interface {
 
 // Configuration for a specific controller.
 type ControllerConfig struct {
-	Route string
+	Route   string
 	Filters []ControllerFilter
 }
 
 func NewControllerConfig(route string) *ControllerConfig {
 	return &ControllerConfig{
-		Route: route,
+		Route:   route,
 		Filters: make([]ControllerFilter, 0),
 	}
 }
@@ -286,16 +279,16 @@ type Controller interface {
 func HandleRequest(request *Request, conn Writer, controller Controller, serverConfig *ServerConfig) {
 
 	//slice of all the filters
-	filters := append(make([]ControllerFilter,0), serverConfig.Filters...)
+	filters := append(make([]ControllerFilter, 0), serverConfig.Filters...)
 	if controller.Config() != nil {
-		filters = append(filters, controller.Config().Filters...)	
+		filters = append(filters, controller.Config().Filters...)
 	}
 
 	//wrap the writer in a Txn
 	txn := NewTxn(request, conn, filters, serverConfig)
 
 	//controller Before filters
-	for _,f := range(filters) {
+	for _, f := range filters {
 		ok := f.Before(txn)
 		if !ok {
 			return
@@ -331,8 +324,8 @@ func NewController(route string, methods []string, handler func(*Txn)) *DefaultC
 	// def.Conf = NewConfig(route)
 
 	def := &DefaultController{
-		Handlers: make(map[string]func(*Txn)), 
-		Conf: NewControllerConfig(route),
+		Handlers: make(map[string]func(*Txn)),
+		Conf:     NewControllerConfig(route),
 	}
 	for _, m := range methods {
 		def.Handlers[m] = handler

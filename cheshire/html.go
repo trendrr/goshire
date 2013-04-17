@@ -49,7 +49,7 @@ func writeResponse(txn *Txn, contentType string, value interface{}) {
 	writeContent(writer, value)
 }
 
-func toHttpWriter(txn *Txn) (*HttpWriter, error){
+func toHttpWriter(txn *Txn) (*HttpWriter, error) {
 	writer, ok := txn.Writer.(*HttpWriter)
 	if !ok {
 		wr, ok := txn.Writer.(*HtmlWriter)
@@ -93,8 +93,8 @@ type HtmlController struct {
 
 func NewHtmlController(route string, methods []string, handler func(*Txn)) *HtmlController {
 	controller := &HtmlController{
-		Handlers: make(map[string]func(*Txn)), 
-		Conf: NewControllerConfig(route),
+		Handlers: make(map[string]func(*Txn)),
+		Conf:     NewControllerConfig(route),
 	}
 
 	for _, m := range methods {
@@ -113,8 +113,8 @@ func (this *HtmlController) HttpHijack(writer http.ResponseWriter, req *http.Req
 	request := ToStrestRequest(req)
 	conn := &HtmlWriter{
 		&HttpWriter{
-			Writer: writer, 
-			request: req, 
+			Writer:       writer,
+			request:      req,
 			ServerConfig: serverConfig,
 		},
 	}
@@ -138,7 +138,6 @@ func (this *HtmlController) HandleRequest(txn *Txn) {
 	}
 	handler(txn)
 }
-
 
 // Allows us to use the fast static file handler built into golang standard lib
 // Note that this skips the cheshire lifecycle so no middleware filters will be
