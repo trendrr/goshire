@@ -12,18 +12,12 @@ const StrestVersion = float32(2)
 // See protocol spec https://github.com/trendrr/strest-server/wiki/STREST-Protocol-Spec
 type Request struct {
 	dynmap.DynMap
+}
 
-	// Strest struct {
-	// 	Version float32        `json:"v"`
-	// 	Method  string         `json:"method"`
-	// 	Uri     string         `json:"uri"`
-	// 	Params  *dynmap.DynMap `json:"params"`
-
-	// 	Txn struct {
-	// 		Id     string `json:"id"`
-	// 		Accept string `json:"accept"`
-	// 	} `json:"txn"`
-	// } `json:"strest"`
+// Makes it simple to create a new response from
+// anything implementing this interface
+type RequestTxnId interface {
+	TxnId() string
 }
 
 // Create a new request object.
@@ -38,11 +32,9 @@ func NewRequest(uri, method string) *Request {
 	return request
 }
 
-
 func (this *Request) ToDynMap() *dynmap.DynMap {
 	return &this.DynMap
 }
-
 
 func (this *Request) Method() string {
 	return this.MustString("strest.method", "")
@@ -93,29 +85,13 @@ func (this *Request) SetTxnAccept(accept string) {
 
 //This request will accept multiple responses
 func (this *Request) SetTxnAcceptMulti() {
-	this.SetTxnAccept("multi");
+	this.SetTxnAccept("multi")
 }
 
 //This request will only accept a single response
 func (this *Request) SetTxnAcceptSingle() {
-	this.SetTxnAccept("single");
+	this.SetTxnAccept("single")
 }
-
-// Creates a new response based on this request.
-// auto fills the txn id
-func (this *Request) NewResponse() *Response {
-	response := newResponse()
-	response.SetTxnId(this.TxnId())
-	return response
-}
-
-
-func (this *Request) NewError(code int, message string) *Response {
-	response := this.NewResponse()
-	response.SetStatus(code, message)
-	return response
-}
-
 
 // Standard STREST response
 // See protocol spec https://github.com/trendrr/strest-server/wiki/STREST-Protocol-Spec
@@ -180,10 +156,88 @@ func newResponse() *Response {
 }
 
 
-type Connection interface {
+// A generic cache.
+type Cache interface {
+    Set(key string, value []byte, expireSeconds int)
+
+    // Sets the value if and only if there is no value associated with this key
+    SetIfAbsent(key string, value []byte, expireSeconds int) bool 
+    
+    // Deletes the value at the requested key
+    Delete(key string) bool
+
+    // Gets the value at the requested key
+    Get(key string) ([]byte, bool)
+
+    // Increment the key by val (val is allowed to be negative)
+    // in most implementation expireSeconds will be from the first increment, but users should not count on that.
+    // if no value is a present it should be added.  
+    // If a value is present which is not a number an error should be returned.
+    Inc(key string, val int64, expireSeconds int) (int64, error)
+}
+
+type Writer interface {
 	//writes the response to the underlying channel 
 	// i.e. either to an http response writer or json socket.
+	// implementers should make sure that this method is threadsafe as the 
+	// Writer may be shared across go routines.
 	Write(*Response) (int, error)
+
+	//What type of writer is this?
+	//Examples: http,json,websocket
+	Type() string
+}
+
+// Represents a single transaction.  This wraps the underlying Writer, and
+// allows saving of session state ect.
+type Txn struct {
+	Request *Request
+
+	//writer should be threadsafe
+	Writer Writer
+
+	//Session is not currently threadsafe
+	Session *dynmap.DynMap
+
+	//The filters that will be run on this txn
+	Filters []ControllerFilter
+
+	//the immutable server config
+	ServerConfig *ServerConfig
+}
+
+func (this *Txn) Params() *dynmap.DynMap {
+	return this.Request.Params()
+}
+
+func (this *Txn) TxnId() string {
+	return this.Request.TxnId()
+}
+
+// Writes a response to the underlying writer.
+func (this *Txn) Write(response *Response) (int, error) {
+	c, err := this.Writer.Write(response)
+	//Call the after filters.
+	for _, f := range this.Filters {
+		f.After(response, this)
+	}
+	return c, err
+}
+
+//Returns the connection type.
+//currently will be one of http,html,json,websocket
+func (this *Txn) Type() string {
+	return this.Writer.Type()
+}
+
+func NewTxn(request *Request, writer Writer, filters []ControllerFilter, serverConfig *ServerConfig) *Txn {
+	return &Txn{
+		Request:      request,
+		Writer:       writer,
+		Session:      dynmap.NewDynMap(),
+		Filters:      filters,
+		ServerConfig: serverConfig,
+	}
 }
 
 type RouteMatcher interface {
@@ -194,12 +248,17 @@ type RouteMatcher interface {
 }
 type ServerConfig struct {
 	*dynmap.DynMap
-	Router RouteMatcher
+	Router  RouteMatcher
+	Filters []ControllerFilter
 }
 
 // Creates a new server config with a default routematcher
 func NewServerConfig() *ServerConfig {
-	return &ServerConfig{dynmap.NewDynMap(), NewDefaultRouter()}
+	return &ServerConfig{
+		dynmap.NewDynMap(),
+		NewDefaultRouter(),
+		make([]ControllerFilter, 0),
+	}
 }
 
 // Registers a controller with the RouteMatcher.  
@@ -209,31 +268,66 @@ func (this *ServerConfig) Register(methods []string, controller Controller) {
 	this.Router.Register(methods, controller)
 }
 
+type ControllerFilter interface {
+	//This is called before the Controller is called. 
+	//returning false will stop the execution
+	Before(*Txn) bool
+
+	//This is called after the controller is called.
+	After(*Response, *Txn)
+}
+
 // Configuration for a specific controller.
 type ControllerConfig struct {
-	Route string
+	Route   string
+	Filters []ControllerFilter
 }
 
 func NewControllerConfig(route string) *ControllerConfig {
-	return &ControllerConfig{Route: route}
+	return &ControllerConfig{
+		Route:   route,
+		Filters: make([]ControllerFilter, 0),
+	}
 }
 
 // a Controller object
 type Controller interface {
 	Config() *ControllerConfig
-	HandleRequest(*Request, Connection)
+	HandleRequest(*Txn)
+}
+
+// Implements the handle request, does the full filter stack.
+func HandleRequest(request *Request, conn Writer, controller Controller, serverConfig *ServerConfig) {
+
+	//slice of all the filters
+	filters := append(make([]ControllerFilter, 0), serverConfig.Filters...)
+	if controller.Config() != nil {
+		filters = append(filters, controller.Config().Filters...)
+	}
+
+	//wrap the writer in a Txn
+	txn := NewTxn(request, conn, filters, serverConfig)
+
+	//controller Before filters
+	for _, f := range filters {
+		ok := f.Before(txn)
+		if !ok {
+			return
+		}
+	}
+	controller.HandleRequest(txn)
 }
 
 type DefaultController struct {
-	Handlers map[string]func(*Request, Connection)
+	Handlers map[string]func(*Txn)
 	Conf     *ControllerConfig
 }
 
 func (this *DefaultController) Config() *ControllerConfig {
 	return this.Conf
 }
-func (this *DefaultController) HandleRequest(request *Request, conn Connection) {
-	handler := this.Handlers[request.Method()]
+func (this *DefaultController) HandleRequest(txn *Txn) {
+	handler := this.Handlers[txn.Request.Method()]
 	if handler == nil {
 		handler = this.Handlers["ALL"]
 	}
@@ -242,15 +336,18 @@ func (this *DefaultController) HandleRequest(request *Request, conn Connection) 
 		//TODO: method not allowed 
 		return
 	}
-	handler(request, conn)
+	handler(txn)
 }
 
 // creates a new controller for the specified route for a specific method types (GET, POST, PUT, ect)
-func NewController(route string, methods []string, handler func(*Request, Connection)) *DefaultController {
+func NewController(route string, methods []string, handler func(*Txn)) *DefaultController {
 	// def := new(DefaultController)
 	// def.Conf = NewConfig(route)
 
-	def := &DefaultController{Handlers: make(map[string]func(*Request, Connection)), Conf: NewControllerConfig(route)}
+	def := &DefaultController{
+		Handlers: make(map[string]func(*Txn)),
+		Conf:     NewControllerConfig(route),
+	}
 	for _, m := range methods {
 		def.Handlers[m] = handler
 	}
@@ -258,6 +355,6 @@ func NewController(route string, methods []string, handler func(*Request, Connec
 }
 
 // creates a new controller that will process all method types
-func NewControllerAll(route string, handler func(*Request, Connection)) *DefaultController {
+func NewControllerAll(route string, handler func(*Txn)) *DefaultController {
 	return NewController(route, []string{"ALL"}, handler)
 }

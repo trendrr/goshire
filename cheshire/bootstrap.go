@@ -73,6 +73,12 @@ func (this *Bootstrap) InitControllers() {
 	}
 }
 
+func (this *Bootstrap) AddFilters(filters ...ControllerFilter) {
+	for _, f := range filters {
+		this.Conf.Filters = append(this.Conf.Filters, f)
+	}
+}
+
 //
 // a queue of controllers so we can register controllers 
 // before the bootstrap is initialized
@@ -84,13 +90,17 @@ type controllerWrapper struct {
 }
 
 // Registers a controller funtion for api calls 
-func RegisterApi(route string, method string, handler func(*Request, Connection)) {
-	Register([]string{method}, NewController(route, []string{method}, handler))
+func RegisterApi(route string, method string, handler func(*Txn), filters ...ControllerFilter) {
+	controller := NewController(route, []string{method}, handler)
+	controller.Config().Filters = filters
+	Register([]string{method}, controller)
 }
 
 // Registers a controller function for html pages  
-func RegisterHtml(route string, method string, handler func(*Request, *HtmlConnection)) {
-	Register([]string{method}, NewHtmlController(route, []string{method}, handler))
+func RegisterHtml(route string, method string, handler func(*Txn), filters ...ControllerFilter) {
+	controller := NewHtmlController(route, []string{method}, handler)
+	controller.Config().Filters = filters
+	Register([]string{method}, controller)
 }
 
 // Registers a new controller

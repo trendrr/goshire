@@ -11,22 +11,26 @@ import (
 	// "github.com/trendrr/cheshire-golang/dynmap"
 )
 
-type JsonConnection struct {
+type JsonWriter struct {
 	serverConfig *ServerConfig
 	conn         net.Conn
 	writerLock   sync.Mutex
 }
 
-func (conn JsonConnection) Write(response *Response) (int, error) {
+func (this *JsonWriter) Write(response *Response) (int, error) {
 	json, err := json.Marshal(response)
 	if err != nil {
 		//TODO: uhh, do something..
 		log.Print(err)
 	}
-	defer conn.writerLock.Unlock()
-	conn.writerLock.Lock()
-	bytes, err := conn.conn.Write(json)
+	defer this.writerLock.Unlock()
+	this.writerLock.Lock()
+	bytes, err := this.conn.Write(json)
 	return bytes, err
+}
+
+func (this *JsonWriter) Type() string {
+	return "json"
 }
 
 func JsonListen(port int, config *ServerConfig) error {
@@ -44,12 +48,12 @@ func JsonListen(port int, config *ServerConfig) error {
 			// handle error
 			continue
 		}
-		go handleConnection(JsonConnection{serverConfig: config, conn: conn})
+		go handleConnection(&JsonWriter{serverConfig: config, conn: conn})
 	}
 	return nil
 }
 
-func handleConnection(conn JsonConnection) {
+func handleConnection(conn *JsonWriter) {
 	defer conn.conn.Close()
 	// log.Print("CONNECT!")
 
@@ -68,7 +72,7 @@ func handleConnection(conn JsonConnection) {
 		}
 		//request
 		controller := conn.serverConfig.Router.Match(req.Method(), req.Uri())
-		go controller.HandleRequest(&req, conn)
+		go HandleRequest(&req, conn, controller, conn.serverConfig)
 	}
 
 	log.Print("DISCONNECT!")
