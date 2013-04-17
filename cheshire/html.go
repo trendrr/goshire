@@ -32,7 +32,7 @@ func Render(txn *Txn, path string, context map[string]interface{}) {
 }
 
 //Adds the special variables to the context.
-func contxt(txn *Txn, context map[string]interface{}) (map[string]interface{}) {
+func contxt(txn *Txn, context map[string]interface{}) map[string]interface{} {
 	context["request"] = txn.Request
 	context["params"] = txn.Request.Params().Map
 	return context
@@ -113,8 +113,8 @@ func (this *HtmlController) HttpHijack(writer http.ResponseWriter, req *http.Req
 	conn := &HtmlWriter{
 		&HttpWriter{
 			Writer:       writer,
-			HttpRequest:      req,
-			Request: request,
+			HttpRequest:  req,
+			Request:      request,
 			ServerConfig: serverConfig,
 		},
 	}

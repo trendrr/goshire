@@ -12,8 +12,8 @@ import (
 
 type HttpWriter struct {
 	Writer        http.ResponseWriter
-	HttpRequest       *http.Request
-	Request *Request
+	HttpRequest   *http.Request
+	Request       *Request
 	ServerConfig  *ServerConfig
 	headerWritten sync.Once
 }
@@ -69,8 +69,8 @@ func (this *httpHandler) ServeHTTP(writer http.ResponseWriter, req *http.Request
 
 	conn := &HttpWriter{
 		Writer:       writer,
-		HttpRequest:      req,
-		Request: request,
+		HttpRequest:  req,
+		Request:      request,
 		ServerConfig: this.serverConfig,
 	}
 	HandleRequest(request, conn, controller, this.serverConfig)
