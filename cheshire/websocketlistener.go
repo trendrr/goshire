@@ -42,7 +42,7 @@ type WebsocketController struct {
 func (wc WebsocketController) Config() *ControllerConfig {
 	return wc.Conf
 }
-func (wc WebsocketController) HandleRequest(*Request, Writer) {
+func (wc WebsocketController) HandleRequest(txn *Txn) {
 	//do nothing, this should never be called. 
 }
 
@@ -87,7 +87,7 @@ func (this *WebsocketController) HandleWCConnection(ws *websocket.Conn) {
 		log.Print("GOT CONTROLLER ")
 		log.Print(controller)
 
-		go controller.HandleRequest(&req, writer)
+		go HandleRequest(&req, writer, controller, this.serverConfig)
 	}
 	log.Print("DISCONNECT!")
 }

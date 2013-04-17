@@ -77,10 +77,13 @@ func (this *httpHandler) ServeHTTP(writer http.ResponseWriter, req *http.Request
 		ServerConfig: this.serverConfig,
 	}
 <<<<<<< HEAD
+<<<<<<< HEAD
 
 	controller.HandleRequest(request, &conn)
 =======
 	log.Println(controller)
+=======
+>>>>>>> massive refactor, controllers take txn instead of writer and request.
 	HandleRequest(request, conn, controller, this.serverConfig)
 >>>>>>> more refactoring, have html controller hijack the request so we can use a custom writer
 }

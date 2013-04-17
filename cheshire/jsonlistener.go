@@ -73,7 +73,7 @@ func handleConnection(conn *JsonWriter) {
 		}
 		//request
 		controller := conn.serverConfig.Router.Match(req.Method(), req.Uri())
-		go controller.HandleRequest(&req, conn)
+		go HandleRequest(&req, conn, controller, conn.serverConfig)
 	}
 
 	log.Print("DISCONNECT!")

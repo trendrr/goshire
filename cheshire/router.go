@@ -44,11 +44,11 @@ type DefaultNotFoundHandler struct {
 func (h *DefaultNotFoundHandler) Config() *ControllerConfig {
 	return nil
 }
-func (h *DefaultNotFoundHandler) HandleRequest(req *Request, conn Writer) {
-	response := NewResponse(req)
+func (h *DefaultNotFoundHandler) HandleRequest(txn *Txn) {
+	response := NewResponse(txn)
 	response.SetStatusCode(404)
 	response.SetStatusMessage("Not Found")
-	conn.Write(response)
+	txn.Write(response)
 }
 
 // NewServeMux allocates and returns a new CheshireMux.

@@ -90,14 +90,14 @@ type controllerWrapper struct {
 }
 
 // Registers a controller funtion for api calls 
-func RegisterApi(route string, method string, handler func(*Request, Writer), filters ...ControllerFilter) {
+func RegisterApi(route string, method string, handler func(*Txn), filters ...ControllerFilter) {
 	controller := NewController(route, []string{method}, handler)
 	controller.Config().Filters = filters
 	Register([]string{method}, controller)
 }
 
 // Registers a controller function for html pages  
-func RegisterHtml(route string, method string, handler func(*Request, *HtmlWriter), filters ...ControllerFilter) {
+func RegisterHtml(route string, method string, handler func(*Txn), filters ...ControllerFilter) {
 	controller := NewHtmlController(route, []string{method}, handler)
 	controller.Config().Filters = filters
 	Register([]string{method}, controller)

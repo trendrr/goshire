@@ -187,6 +187,9 @@ type Txn struct {
 
 	//The filters that will be run on this txn
 	Filters []ControllerFilter
+
+	//the immutable server config
+	ServerConfig *ServerConfig
 }
 
 func (this *Txn) Params() *dynmap.DynMap {
@@ -213,12 +216,13 @@ func (this *Txn) Type() string {
 	return this.Writer.Type()
 }
 
-func NewTxn(request *Request, writer Writer, filters []ControllerFilter) *Txn {
+func NewTxn(request *Request, writer Writer, filters []ControllerFilter, serverConfig *ServerConfig) *Txn {
 	return &Txn{
 		Request : request,
 		Writer : writer,
 		Session : dynmap.NewDynMap(),
 		Filters : filters,
+		ServerConfig : serverConfig,
 	}
 }
 
@@ -275,7 +279,7 @@ func NewControllerConfig(route string) *ControllerConfig {
 // a Controller object
 type Controller interface {
 	Config() *ControllerConfig
-	HandleRequest(*Request, Writer)
+	HandleRequest(*Txn)
 }
 
 // Implements the handle request, does the full filter stack.
@@ -288,7 +292,7 @@ func HandleRequest(request *Request, conn Writer, controller Controller, serverC
 	}
 
 	//wrap the writer in a Txn
-	txn := NewTxn(request, conn, filters)
+	txn := NewTxn(request, conn, filters, serverConfig)
 
 	//controller Before filters
 	for _,f := range(filters) {
@@ -297,19 +301,19 @@ func HandleRequest(request *Request, conn Writer, controller Controller, serverC
 			return
 		}
 	}
-	controller.HandleRequest(request, txn)
+	controller.HandleRequest(txn)
 }
 
 type DefaultController struct {
-	Handlers map[string]func(*Request, Writer)
+	Handlers map[string]func(*Txn)
 	Conf     *ControllerConfig
 }
 
 func (this *DefaultController) Config() *ControllerConfig {
 	return this.Conf
 }
-func (this *DefaultController) HandleRequest(request *Request, conn Writer) {
-	handler := this.Handlers[request.Method()]
+func (this *DefaultController) HandleRequest(txn *Txn) {
+	handler := this.Handlers[txn.Request.Method()]
 	if handler == nil {
 		handler = this.Handlers["ALL"]
 	}
@@ -318,16 +322,16 @@ func (this *DefaultController) HandleRequest(request *Request, conn Writer) {
 		//TODO: method not allowed 
 		return
 	}
-	handler(request, conn)
+	handler(txn)
 }
 
 // creates a new controller for the specified route for a specific method types (GET, POST, PUT, ect)
-func NewController(route string, methods []string, handler func(*Request, Writer)) *DefaultController {
+func NewController(route string, methods []string, handler func(*Txn)) *DefaultController {
 	// def := new(DefaultController)
 	// def.Conf = NewConfig(route)
 
 	def := &DefaultController{
-		Handlers: make(map[string]func(*Request, Writer)), 
+		Handlers: make(map[string]func(*Txn)), 
 		Conf: NewControllerConfig(route),
 	}
 	for _, m := range methods {
@@ -337,6 +341,6 @@ func NewController(route string, methods []string, handler func(*Request, Writer
 }
 
 // creates a new controller that will process all method types
-func NewControllerAll(route string, handler func(*Request, Writer)) *DefaultController {
+func NewControllerAll(route string, handler func(*Txn)) *DefaultController {
 	return NewController(route, []string{"ALL"}, handler)
 }
