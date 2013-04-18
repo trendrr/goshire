@@ -27,7 +27,7 @@ func (this *Session) Before(txn *Txn) bool {
         //skip
         return true
     }
-    log.Println("SESSION!")
+    // log.Println("SESSION!")
     httpWriter, err := ToHttpWriter(txn)
     if err != nil {
         log.Printf("ERROR in session.before %s", err)
@@ -43,13 +43,12 @@ func (this *Session) Before(txn *Txn) bool {
     } else {
         //load the session. 
         sessionId := cookie.Value
-        log.Printf("Found session cookie! %s", sessionId)
+        // log.Printf("Found session cookie! %s", sessionId)
         bytes, ok := this.cache.Get(sessionId)
         if !ok {
             //create a new session, since the old one is gone
             sessionId = SessionId()
-
-            log.Printf("Old session expired, setting new one (%s)", sessionId)
+            // log.Printf("Old session expired, setting new one (%s)", sessionId)
         } else {
             err = txn.Session.UnmarshalJSON(bytes)
             if err != nil {
@@ -58,7 +57,6 @@ func (this *Session) Before(txn *Txn) bool {
         }
         txn.Session.Put("session_id", sessionId)
     }
-
     return true
 }
 
@@ -98,31 +96,6 @@ func (this *Session) BeforeHtmlWrite(txn *Txn, writer http.ResponseWriter) bool 
     }
     return true
 }
-
-//This is called after the controller is called.
-func (this *Session) BeforeWrite(response *Response, txn *Txn) {
-    if txn.Type() != "html" {
-        //skip
-        return
-    }
-
-
-
-    return
-}
-
-//This is called after the controller is called.
-func (this *Session) AfterWrite(response *Response, txn *Txn) {
-    if txn.Type() != "html" {
-        //skip
-        return
-    }
-
-
-
-    return
-}
-
 
 // returns a unique session id
 func SessionId() string {
