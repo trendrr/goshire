@@ -15,6 +15,12 @@ func (this *HtmlWriter) Type() string {
 	return "html"
 }
 
+//Special filter for html lifecycle
+type HtmlFilter interface {
+	ControllerFilter
+	BeforeHtmlWrite(txn *Txn, writer http.ResponseWriter) bool
+}
+
 // Renders with a layout template.  
 // 
 // Layout should have {{content}} variable
@@ -39,16 +45,34 @@ func contxt(txn *Txn, context map[string]interface{}) map[string]interface{} {
 }
 
 func writeResponse(txn *Txn, contentType string, value interface{}) {
-	writer, err := toHttpWriter(txn)
+	writer, err := ToHttpWriter(txn)
 	if err != nil {
 		SendError(txn, 400, fmt.Sprintf("Error: %s", err))
+	}
+	if !beforeWrite(txn, writer) {
+		return
 	}
 	writer.Writer.Header().Set("Content-Type", contentType)
 	writer.Writer.WriteHeader(200)
 	writeContent(writer, value)
 }
 
-func toHttpWriter(txn *Txn) (*HttpWriter, error) {
+// call the html hooks.
+// Always remember to call this!
+func beforeWrite(txn *Txn, writer *HttpWriter) bool {
+	//Call the filters.
+	for _, filter := range txn.Filters {
+		f, ok := filter.(HtmlFilter)
+		if ok {
+			if !f.BeforeHtmlWrite(txn, writer.Writer) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func ToHttpWriter(txn *Txn) (*HttpWriter, error) {
 	writer, ok := txn.Writer.(*HttpWriter)
 	if !ok {
 		wr, ok := txn.Writer.(*HtmlWriter)
@@ -62,9 +86,12 @@ func toHttpWriter(txn *Txn) (*HttpWriter, error) {
 
 //Issues a redirect (301) to the url
 func Redirect(txn *Txn, url string) {
-	writer, err := toHttpWriter(txn)
+	writer, err := ToHttpWriter(txn)
 	if err != nil {
 		SendError(txn, 400, fmt.Sprintf("Error: %s", err))
+	}
+	if !beforeWrite(txn, writer) {
+		return
 	}
 	writer.Writer.Header().Set("Location", url)
 	writer.Writer.WriteHeader(301)
