@@ -216,10 +216,22 @@ func (this *Txn) TxnId() string {
 
 // Writes a response to the underlying writer.
 func (this *Txn) Write(response *Response) (int, error) {
+
+	//Call the filters.
+	for _, filter := range this.Filters {
+		f, ok := filter.(FilterAdvanced)
+		if ok {
+			f.BeforeWrite(response, this)	
+		}
+	}
+
 	c, err := this.Writer.Write(response)
-	//Call the after filters.
-	for _, f := range this.Filters {
-		f.After(response, this)
+	//Call the filters.
+	for _, filter := range this.Filters {
+		f, ok := filter.(FilterAdvanced)
+		if ok {
+			f.AfterWrite(response, this)	
+		}
 	}
 	return c, err
 }
@@ -268,13 +280,23 @@ func (this *ServerConfig) Register(methods []string, controller Controller) {
 	this.Router.Register(methods, controller)
 }
 
+// Hooks to hook into before and after the controller execution.
 type ControllerFilter interface {
 	//This is called before the Controller is called. 
 	//returning false will stop the execution
 	Before(*Txn) bool
+}
+
+// Additional hooks if you need more granularity into the lifecycle
+type FilterAdvanced interface {
+	ControllerFilter
+
+	//Called immediately before the response is written.
+	BeforeWrite(*Response, *Txn)
 
 	//This is called after the controller is called.
-	After(*Response, *Txn)
+	//The response has already been sent 
+	AfterWrite(*Response, *Txn)
 }
 
 // Configuration for a specific controller.
