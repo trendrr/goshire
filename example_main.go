@@ -3,6 +3,8 @@ package main
 import (
     "log"
     "github.com/trendrr/cheshire-golang/cheshire"
+    "github.com/trendrr/cheshire-golang/cheshire/impl/gocache"
+       
 )
 
 type DummyFilter struct {
@@ -17,9 +19,8 @@ func (this *DummyFilter) After(*cheshire.Response, *cheshire.Txn) {
 }
 
 func main() {
-
-    //create a couple dummy filters
-
+    log.Println(cheshire.RandString(32))
+    
     //this one will get executed on every request.
     globalFilter := &DummyFilter{"global"}
     //this one will only get executed on ping requests.
@@ -27,7 +28,11 @@ func main() {
 
     bootstrap := cheshire.NewBootstrapFile("example_config.yaml")
 
-    bootstrap.AddFilters(globalFilter)
+    //Setup our cache.  this uses the local cache 
+    //you will need 
+    //github.com/pmylund/go-cache
+    cache := gocache.New(10, 10)
+    bootstrap.AddFilters(globalFilter, cheshire.NewSession(cache, 3600))
 
 
     log.Println("HERE:1")
@@ -51,12 +56,22 @@ func main() {
     }
     cheshire.RegisterHtml("/404", "GET", four04)
 
+
     //an example redirect page
     redirect := func(txn *cheshire.Txn) {
         cheshire.Redirect(txn, "/ping")
     }
     cheshire.RegisterHtml("/redirect", "GET", redirect)
 
+
+    //an example of session usage
+    sess := func(txn *cheshire.Txn) {
+        log.Println(txn.Session)
+        txn.Session.Put("mymessage", "this is my message")
+        context := make(map[string]interface{})
+        cheshire.Render(txn, "/index.html", context)
+    }
+    cheshire.RegisterHtml("/", "GET", sess)
 
     log.Println("Starting")
     //starts listening on all configured interfaces

@@ -3,6 +3,7 @@ package cheshire
 import (
 	"fmt"
 	"github.com/hoisie/mustache"
+	"github.com/trendrr/cheshire-golang/dynmap"
 	"log"
 	"net/http"
 )
@@ -13,6 +14,16 @@ type HtmlWriter struct {
 
 func (this *HtmlWriter) Type() string {
 	return "html"
+}
+
+//Special filter for html lifecycle
+type HtmlFilter interface {
+	ControllerFilter
+
+	//Allows you to hook in before anything is writen.  
+	//makes it possible to
+	//set headers cookies, ect.
+	BeforeHtmlWrite(txn *Txn, writer http.ResponseWriter) bool
 }
 
 // Renders with a layout template.  
@@ -31,24 +42,60 @@ func Render(txn *Txn, path string, context map[string]interface{}) {
 	writeResponse(txn, "text/html", mustache.RenderFile(templatePath, contxt(txn, context)))
 }
 
+func Flash(txn *Txn, severity, message string) {
+	d := dynmap.NewDynMap()
+	d.Put("severity", severity)
+	d.Put("message", message)
+	txn.Session.AddToSlice("_flash", d)
+}
+
 //Adds the special variables to the context.
 func contxt(txn *Txn, context map[string]interface{}) map[string]interface{} {
 	context["request"] = txn.Request
 	context["params"] = txn.Request.Params().Map
+
+	flash, ok := txn.Session.GetDynMapSlice("_flash")
+	if ok {
+		//convert to map slice
+		fl := make([]map[string]interface{}, 0)
+		for _, f := range(flash) {
+			fl = append(fl, f.Map)
+		}
+		context["flash"] = fl
+	}
+	txn.Session.Remove("_flash")
 	return context
 }
 
 func writeResponse(txn *Txn, contentType string, value interface{}) {
-	writer, err := toHttpWriter(txn)
+	writer, err := ToHttpWriter(txn)
 	if err != nil {
 		SendError(txn, 400, fmt.Sprintf("Error: %s", err))
+	}
+	if !beforeWrite(txn, writer) {
+		return
 	}
 	writer.Writer.Header().Set("Content-Type", contentType)
 	writer.Writer.WriteHeader(200)
 	writeContent(writer, value)
 }
 
-func toHttpWriter(txn *Txn) (*HttpWriter, error) {
+// call the html hooks.
+// Always remember to call this!
+func beforeWrite(txn *Txn, writer *HttpWriter) bool {
+	//Call the filters.
+	for _, filter := range txn.Filters {
+		f, ok := filter.(HtmlFilter)
+		if ok {
+			if !f.BeforeHtmlWrite(txn, writer.Writer) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func ToHttpWriter(txn *Txn) (*HttpWriter, error) {
 	writer, ok := txn.Writer.(*HttpWriter)
 	if !ok {
 		wr, ok := txn.Writer.(*HtmlWriter)
@@ -62,9 +109,12 @@ func toHttpWriter(txn *Txn) (*HttpWriter, error) {
 
 //Issues a redirect (301) to the url
 func Redirect(txn *Txn, url string) {
-	writer, err := toHttpWriter(txn)
+	writer, err := ToHttpWriter(txn)
 	if err != nil {
 		SendError(txn, 400, fmt.Sprintf("Error: %s", err))
+	}
+	if !beforeWrite(txn, writer) {
+		return
 	}
 	writer.Writer.Header().Set("Location", url)
 	writer.Writer.WriteHeader(301)
