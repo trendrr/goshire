@@ -5,6 +5,7 @@ import (
 	"github.com/hoisie/mustache"
 	"log"
 	"net/http"
+	"github.com/trendrr/cheshire-golang/dynmap"
 )
 
 type HtmlWriter struct {
@@ -18,6 +19,10 @@ func (this *HtmlWriter) Type() string {
 //Special filter for html lifecycle
 type HtmlFilter interface {
 	ControllerFilter
+
+	//Allows you to hook in before anything is writen.  
+	//makes it possible to
+	//set headers cookies, ect.
 	BeforeHtmlWrite(txn *Txn, writer http.ResponseWriter) bool
 }
 
@@ -37,10 +42,23 @@ func Render(txn *Txn, path string, context map[string]interface{}) {
 	writeResponse(txn, "text/html", mustache.RenderFile(templatePath, contxt(txn, context)))
 }
 
+func Flash(txn *Txn, severity, message string) {
+	d := dynmap.NewDynMap()
+	d.Put("severity", severity)
+	d.Put("message", message)
+	txn.Session.AddToSlice("_flash", d)
+}
+
 //Adds the special variables to the context.
 func contxt(txn *Txn, context map[string]interface{}) map[string]interface{} {
 	context["request"] = txn.Request
 	context["params"] = txn.Request.Params().Map
+
+	flash, ok := txn.Session.GetDynMapSlice("_flash")
+	if ok {
+		context["flash"] = flash	
+	}
+	txn.Session.Remove("_flash")
 	return context
 }
 
