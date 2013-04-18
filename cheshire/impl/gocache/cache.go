@@ -5,6 +5,7 @@ import (
     cache "github.com/pmylund/go-cache"
     "time"
     "sync"
+    "fmt"
 )
 
 // Wraps github.com/pmylund/go-cache into our local cache interface.
@@ -36,8 +37,9 @@ func (this *GoCache) SetIfAbsent(key string, value []byte, expireSeconds int) bo
 }
     
     // Deletes the value at the requested key
-func (this *GoCache) Delete(key string) bool {
+func (this *GoCache) Delete(key string) {
     this.Cache.Delete(key)
+
 }
 
     // Gets the value at the requested key
