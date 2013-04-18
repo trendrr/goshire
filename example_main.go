@@ -20,9 +20,7 @@ func (this *DummyFilter) After(*cheshire.Response, *cheshire.Txn) {
 
 func main() {
     log.Println(cheshire.RandString(32))
-    cache := gocache.New(10, 10)
-    //create a couple dummy filters
-    cache.Set("blah", []byte("balh"), 10)
+    
     //this one will get executed on every request.
     globalFilter := &DummyFilter{"global"}
     //this one will only get executed on ping requests.
@@ -30,6 +28,10 @@ func main() {
 
     bootstrap := cheshire.NewBootstrapFile("example_config.yaml")
 
+    //Setup our cache.  this uses the local cache 
+    //you will need 
+    //github.com/pmylund/go-cache
+    cache := gocache.New(10, 10)
     bootstrap.AddFilters(globalFilter, cheshire.NewSession(cache, 3600))
 
 
