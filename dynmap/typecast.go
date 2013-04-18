@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"log"
 	"strconv"
-	"time"
 	"strings"
+	"time"
 )
 
 //parse time
@@ -33,16 +33,15 @@ func ToBool(value interface{}) (bool, error) {
 
 		if tmp == "false" || tmp == "f" || tmp == "no" || tmp == "n" || tmp == "off" {
 			return false, nil
-		}	
+		}
 	}
-	return false, fmt.Errorf("Unable to convert to bool (%s)", value)	
+	return false, fmt.Errorf("Unable to convert to bool (%s)", value)
 }
 
 func ToInt(value interface{}) (int, error) {
 	i, err := ToInt64(value)
 	return int(i), err
 }
-
 
 func ToInt64(value interface{}) (i int64, err error) {
 	switch v := value.(type) {

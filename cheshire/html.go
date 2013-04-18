@@ -3,9 +3,9 @@ package cheshire
 import (
 	"fmt"
 	"github.com/hoisie/mustache"
+	"github.com/trendrr/cheshire-golang/dynmap"
 	"log"
 	"net/http"
-	"github.com/trendrr/cheshire-golang/dynmap"
 )
 
 type HtmlWriter struct {
@@ -56,7 +56,7 @@ func contxt(txn *Txn, context map[string]interface{}) map[string]interface{} {
 
 	flash, ok := txn.Session.GetDynMapSlice("_flash")
 	if ok {
-		context["flash"] = flash	
+		context["flash"] = flash
 	}
 	txn.Session.Remove("_flash")
 	return context

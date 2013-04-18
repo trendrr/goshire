@@ -5,9 +5,9 @@ import (
 	// "log"
 	"encoding/json"
 	"errors"
-	"time"
 	"fmt"
 	"net/url"
+	"time"
 )
 
 //Dont make this a map type, since we want the option of 
@@ -29,8 +29,8 @@ func NewDynMap() *DynMap {
 // TODO: we should sort the keynames so ordering is consistent and then this
 // can be used a cache key
 func (this *DynMap) MarshalURL() (string, error) {
-	vals := &url.Values{}	
-	for key,value := range(this.Map) {
+	vals := &url.Values{}
+	for key, value := range this.Map {
 		err := this.urlEncode(vals, key, value)
 		if err != nil {
 			return "", err
@@ -62,25 +62,25 @@ func (this *DynMap) UnmarshalURL(urlstring string) error {
 }
 
 //adds the requested value to the Values
-func (this *DynMap) urlEncode(vals *url.Values, key string, value interface{}) error{
-	
+func (this *DynMap) urlEncode(vals *url.Values, key string, value interface{}) error {
+
 	if DynMapConvertable(value) {
 		mp, ok := ToDynMap(value)
 		if !ok {
 			return fmt.Errorf("Unable to convert %s", mp)
-		}	
-		for k,v := range(mp.Map) {
+		}
+		for k, v := range mp.Map {
 			//encode in rails style key[key2]=value
-			this.urlEncode(vals, fmt.Sprintf("%s[%s]",key,k), v)
+			this.urlEncode(vals, fmt.Sprintf("%s[%s]", key, k), v)
 		}
 		return nil
 	}
 	switch v := value.(type) {
-		case []interface{} :
-			for _,tmp := range(v) {
-				this.urlEncode(vals, key, tmp)
-			}
-			return nil
+	case []interface{}:
+		for _, tmp := range v {
+			this.urlEncode(vals, key, tmp)
+		}
+		return nil
 	}
 	vals.Add(key, ToString(value))
 	return nil
@@ -165,7 +165,7 @@ func (this *DynMap) GetTime(key string) (time.Time, bool) {
 	return t, true
 }
 
-func (this *DynMap) GetTimeOrDefault(key string, def time.Time) (time.Time) {
+func (this *DynMap) GetTimeOrDefault(key string, def time.Time) time.Time {
 	tmp, ok := this.GetTime(key)
 	if !ok {
 		return def
@@ -185,7 +185,7 @@ func (this *DynMap) GetBool(key string) (bool, bool) {
 	return b, true
 }
 
-func (this *DynMap) MustBool(key string, def bool) (bool) {
+func (this *DynMap) MustBool(key string, def bool) bool {
 	tmp, ok := this.GetBool(key)
 	if !ok {
 		return def
@@ -220,11 +220,11 @@ func (this *DynMap) GetDynMapSlice(key string) ([]*DynMap, bool) {
 		return nil, false
 	}
 	switch v := lst.(type) {
-	case []*DynMap :
+	case []*DynMap:
 		return v, true
-	case []interface{} :
+	case []interface{}:
 		retlist := make([]*DynMap, 0)
-		for _,tmp := range(v) {
+		for _, tmp := range v {
 			in, ok := ToDynMap(tmp)
 			if !ok {
 				return nil, false
@@ -243,11 +243,11 @@ func (this *DynMap) GetIntSlice(key string) ([]int, bool) {
 		return nil, false
 	}
 	switch v := lst.(type) {
-	case []int :
+	case []int:
 		return v, true
-	case []interface{} :
+	case []interface{}:
 		retlist := make([]int, 0)
-		for _,tmp := range(v) {
+		for _, tmp := range v {
 			in, err := ToInt(tmp)
 			if err != nil {
 				return nil, false
@@ -267,9 +267,9 @@ func (this *DynMap) GetIntSliceSplit(key, delim string) ([]int, bool) {
 		return nil, false
 	}
 	switch v := lst.(type) {
-	case string :
+	case string:
 		retlist := make([]int, 0)
-		for _,tmp := range(strings.Split(v, delim)) {
+		for _, tmp := range strings.Split(v, delim) {
 			in, err := ToInt(tmp)
 			if err != nil {
 				return nil, false
@@ -282,13 +282,12 @@ func (this *DynMap) GetIntSliceSplit(key, delim string) ([]int, bool) {
 	return ret, ok
 }
 
-
 // Adds the item to a slice
-func (this *DynMap) AddToSlice(key string, mp interface{}) error{
+func (this *DynMap) AddToSlice(key string, mp interface{}) error {
 	this.PutIfAbsent(key, make([]interface{}, 0))
 	lst, _ := this.Get(key)
 	switch v := lst.(type) {
-	case []interface{} :
+	case []interface{}:
 		v = append(v, mp)
 		this.Put(key, v)
 	}
