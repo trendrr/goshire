@@ -56,7 +56,12 @@ func contxt(txn *Txn, context map[string]interface{}) map[string]interface{} {
 
 	flash, ok := txn.Session.GetDynMapSlice("_flash")
 	if ok {
-		context["flash"] = flash
+		//convert to map slice
+		fl := make([]map[string]interface{}, 0)
+		for _, f := range(flash) {
+			fl = append(fl, f.Map)
+		}
+		context["flash"] = fl
 	}
 	txn.Session.Remove("_flash")
 	return context
