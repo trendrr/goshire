@@ -10,15 +10,19 @@ import (
 	"sync"
 )
 
-type HttpConnection struct {
+type HttpWriter struct {
 	Writer        http.ResponseWriter
-	HttpRequest       *http.Request
-	Request *Request
+	HttpRequest   *http.Request
+	Request       *Request
 	ServerConfig  *ServerConfig
 	headerWritten sync.Once
 }
 
-func (conn *HttpConnection) Write(response *Response) (int, error) {
+func (this *HttpWriter) Type() string {
+	return "http"
+}
+
+func (conn *HttpWriter) Write(response *Response) (int, error) {
 
 	json, err := json.Marshal(response)
 	if err != nil {
@@ -47,7 +51,7 @@ type httpHandler struct {
 // This should be only used in special cases (static file serving, websockets, ect)
 // controllers that implement this interface will skip the HandleRequest function alltogether
 type HttpHijacker interface {
-	HttpHijack(writer http.ResponseWriter, req *http.Request)
+	HttpHijack(writer http.ResponseWriter, req *http.Request, serverConfig *ServerConfig)
 }
 
 func (this *httpHandler) ServeHTTP(writer http.ResponseWriter, req *http.Request) {
@@ -56,22 +60,20 @@ func (this *httpHandler) ServeHTTP(writer http.ResponseWriter, req *http.Request
 	//check if controller is the special HttpHijacker.
 	h, hijack := controller.(HttpHijacker)
 	if hijack {
-		h.HttpHijack(writer, req)
+		h.HttpHijack(writer, req, this.serverConfig)
 		return
 	}
 
 	//we are already in a go routine, so no need to start another one.
 	request := ToStrestRequest(req)
 
-	//TODO: filters here..
-	conn := HttpConnection{
-		Writer: writer, 
-		HttpRequest: req,
-		Request: request, 
+	conn := &HttpWriter{
+		Writer:       writer,
+		HttpRequest:  req,
+		Request:      request,
 		ServerConfig: this.serverConfig,
 	}
-
-	controller.HandleRequest(request, &conn)
+	HandleRequest(request, conn, controller, this.serverConfig)
 }
 
 func ToStrestRequest(req *http.Request) *Request {

@@ -44,19 +44,21 @@ type DefaultNotFoundHandler struct {
 func (h *DefaultNotFoundHandler) Config() *ControllerConfig {
 	return nil
 }
-func (h *DefaultNotFoundHandler) HandleRequest(req *Request, conn Connection) {
-	response := req.NewResponse()
+func (h *DefaultNotFoundHandler) HandleRequest(txn *Txn) {
+	response := NewResponse(txn)
 	response.SetStatusCode(404)
 	response.SetStatusMessage("Not Found")
-	conn.Write(response)
+	txn.Write(response)
 }
 
 // NewServeMux allocates and returns a new CheshireMux.
 func NewDefaultRouter() *Router {
-	router := &Router{gets: make(map[string]muxEntry),
+	router := &Router{
+		gets:    make(map[string]muxEntry),
 		posts:   make(map[string]muxEntry),
 		deletes: make(map[string]muxEntry),
-		puts:    make(map[string]muxEntry)}
+		puts:    make(map[string]muxEntry),
+	}
 	router.NotFoundHandler = new(DefaultNotFoundHandler)
 	return router
 }
