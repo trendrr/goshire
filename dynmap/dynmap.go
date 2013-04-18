@@ -24,6 +24,11 @@ func NewDynMap() *DynMap {
 	return &DynMap{make(map[string]interface{})}
 }
 
+// Returns self. Here so that we satisfy the DynMaper interface
+func (this *DynMap) ToDynMap() *DynMap {
+	return this
+}
+
 //encodes this map into a url encoded string.
 //maps are encoded in the rails style (key[key2][key2]=value)
 // TODO: we should sort the keynames so ordering is consistent and then this
