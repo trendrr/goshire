@@ -24,93 +24,96 @@ func setupPartitionControllers(man *Manager) {
     // cheshire.RegisterApi("/chs/data/pull", "GET", DataPull)
 }
 
-func Checkin(request *cheshire.Request, conn cheshire.Connection) {
+func Checkin(txn *cheshire.Txn) {
     table, err := manager.RouterTable()
     revision := int64(0)
     if err == nil {
         revision = table.Revision
     }
-    response := request.NewResponse()
+    response := cheshire.NewResponse(txn)
     response.Put("router_table_revision", revision)
     response.Put("ts", time.Now())
-    conn.Write(response)
+    txn.Write(response)
 }
 
-func GetRouterTable(request *cheshire.Request, conn cheshire.Connection) {
+func GetRouterTable(txn *cheshire.Txn) {
     log.Println("GetRouterTable")
     tble, err := manager.RouterTable()
     if err != nil {
-        conn.Write(request.NewError(506, fmt.Sprintf("Error: %s",err)))
+        cheshire.SendError(txn, 506, fmt.Sprintf("Error: %s",err))
         return
     }
-    response := request.NewResponse()
+    response := cheshire.NewResponse(txn)
     response.Put("router_table", tble.ToDynMap())
-    conn.Write(response)
+    txn.Write(response)
 }
 
-func SetRouterTable(request *cheshire.Request, conn cheshire.Connection) {
-    rtmap, ok := request.Params().GetDynMap("router_table")
+func SetRouterTable(txn *cheshire.Txn) {
+    rtmap, ok := txn.Params().GetDynMap("router_table")
     if !ok {
-        conn.Write(request.NewError(406, "No router_table"))
+        cheshire.SendError(txn, 406, "No router_table")
         return   
     }
 
     rt, err := ToRouterTable(rtmap)
     if err != nil {
-        conn.Write(request.NewError(406, fmt.Sprintf("Unparsable router table (%s)", err)))
+        cheshire.SendError(txn, 406, fmt.Sprintf("Unparsable router table (%s)", err))
         return
     }
 
     _, err = manager.SetRouterTable(rt)
     if err != nil {
-        conn.Write(request.NewError(406, fmt.Sprintf("Unable to set router table (%s)", err)))
+        cheshire.SendError(txn, 406, fmt.Sprintf("Unable to set router table (%s)", err))
         return
     }
-    conn.Write(request.NewResponse())
+    response := cheshire.NewResponse(txn)
+    txn.Write(response)
 }
 
-func Lock(request *cheshire.Request, conn cheshire.Connection) {
+func Lock(txn *cheshire.Txn) {
 
-    partition, ok := request.Params().GetInt("partition")
+    partition, ok := txn.Params().GetInt("partition")
     if !ok {
-        conn.Write(request.NewError(406, fmt.Sprintf("partition param missing")))
+        cheshire.SendError(txn, 406, fmt.Sprintf("partition param missing"))
         return
     }
 
     err := manager.LockPartition(partition)
     if err != nil {
         //now send back an error
-        conn.Write(request.NewError(406, fmt.Sprintf("Unable to lock partitions (%s)", err)))
+        cheshire.SendError(txn, 406, fmt.Sprintf("Unable to lock partitions (%s)", err))
         return
     }
-    conn.Write(request.NewResponse())
+    response := cheshire.NewResponse(txn)
+    txn.Write(response)
 }
 
-func Unlock(request *cheshire.Request, conn cheshire.Connection) {
-    partition, ok := request.Params().GetInt("partition")
+func Unlock(txn *cheshire.Txn) {
+    partition, ok := txn.Params().GetInt("partition")
     if !ok {
-        conn.Write(request.NewError(406, fmt.Sprintf("partition param missing")))
+        cheshire.SendError(txn, 406, fmt.Sprintf("partition param missing"))
         return
     }
 
     err := manager.UnlockPartition(partition)
     if err != nil {
         //now send back an error
-        conn.Write(request.NewError(406, fmt.Sprintf("Unable to lock partitions (%s)", err)))
+        cheshire.SendError(txn, 406, fmt.Sprintf("Unable to lock partitions (%s)", err))
         return
     }
-    conn.Write(request.NewResponse())
+    response := cheshire.NewResponse(txn)
+    txn.Write(response)
 }
 
 
-func Data(request *cheshire.Request, conn cheshire.Connection) {  
-    part, ok := request.Params().GetInt("partition")
+func Data(txn *cheshire.Txn) {  
+    part, ok := txn.Params().GetInt("partition")
     if !ok {
-        conn.Write(request.NewError(406, fmt.Sprintf("partition param is manditory")))
+        cheshire.SendError(txn, 406, fmt.Sprintf("partition param is manditory"))
         return   
     }
 
-    remove := request.Params().MustBool("remove", false)
+    remove := txn.Params().MustBool("remove", false)
     dataChan := make(chan *dynmap.DynMap, 10)
     finishedChan := make(chan int)
     errorChan := make(chan error)
@@ -119,17 +122,17 @@ func Data(request *cheshire.Request, conn cheshire.Connection) {
             select {
                 case data := <- dataChan :
                     //send a data packet
-                    res := request.NewResponse()
+                    res := cheshire.NewResponse(txn)
                     res.SetTxnStatus("continue")
                     res.Put("data", data)
-                    conn.Write(res)
+                    txn.Write(res)
                 case <- finishedChan :
-                    res := request.NewResponse()
+                    res := cheshire.NewResponse(txn)
                     res.SetTxnStatus("complete")
-                    conn.Write(res)
+                    txn.Write(res)
                     return
                 case err := <- errorChan :        
-                    conn.Write(request.NewError(406, fmt.Sprintf("Unable to unlock (%s)", err)))
+                    cheshire.SendError(txn, 406, fmt.Sprintf("Unable to unlock (%s)", err))
                     return
             }
         }
