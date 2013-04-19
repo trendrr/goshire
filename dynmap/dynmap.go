@@ -24,6 +24,20 @@ func NewDynMap() *DynMap {
 	return &DynMap{make(map[string]interface{})}
 }
 
+// Recursively converts this to a regular go map.
+// (will convert any sub maps)
+func (this *DynMap) ToMap() map[string]interface{} {
+	mp := make(map[string]interface{})
+	for k, v := range(this.Map) {
+		submp, ok := ToDynMap(this.Map[k])
+		if ok {
+			v = submp.ToMap()
+		}
+		mp[k] = v
+	}
+	return mp
+}
+
 // Returns self. Here so that we satisfy the DynMaper interface
 func (this *DynMap) ToDynMap() *DynMap {
 	return this
