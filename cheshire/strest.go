@@ -155,25 +155,24 @@ func newResponse() *Response {
 	return response
 }
 
-
 // A generic cache.
 type Cache interface {
-    Set(key string, value []byte, expireSeconds int)
+	Set(key string, value []byte, expireSeconds int)
 
-    // Sets the value if and only if there is no value associated with this key
-    SetIfAbsent(key string, value []byte, expireSeconds int) bool 
-    
-    // Deletes the value at the requested key
-    Delete(key string) bool
+	// Sets the value if and only if there is no value associated with this key
+	SetIfAbsent(key string, value []byte, expireSeconds int) bool
 
-    // Gets the value at the requested key
-    Get(key string) ([]byte, bool)
+	// Deletes the value at the requested key
+	Delete(key string)
 
-    // Increment the key by val (val is allowed to be negative)
-    // in most implementation expireSeconds will be from the first increment, but users should not count on that.
-    // if no value is a present it should be added.  
-    // If a value is present which is not a number an error should be returned.
-    Inc(key string, val int64, expireSeconds int) (int64, error)
+	// Gets the value at the requested key
+	Get(key string) ([]byte, bool)
+
+	// Increment the key by val (val is allowed to be negative)
+	// in most implementation expireSeconds will be from the first increment, but users should not count on that.
+	// if no value is a present it should be added.  
+	// If a value is present which is not a number an error should be returned.
+	Inc(key string, val int64, expireSeconds int) (int64, error)
 }
 
 type Writer interface {
@@ -216,10 +215,22 @@ func (this *Txn) TxnId() string {
 
 // Writes a response to the underlying writer.
 func (this *Txn) Write(response *Response) (int, error) {
+
+	//Call the filters.
+	for _, filter := range this.Filters {
+		f, ok := filter.(FilterAdvanced)
+		if ok {
+			f.BeforeWrite(response, this)
+		}
+	}
+
 	c, err := this.Writer.Write(response)
-	//Call the after filters.
-	for _, f := range this.Filters {
-		f.After(response, this)
+	//Call the filters.
+	for _, filter := range this.Filters {
+		f, ok := filter.(FilterAdvanced)
+		if ok {
+			f.AfterWrite(response, this)
+		}
 	}
 	return c, err
 }
@@ -268,13 +279,23 @@ func (this *ServerConfig) Register(methods []string, controller Controller) {
 	this.Router.Register(methods, controller)
 }
 
+// Hooks to hook into before and after the controller execution.
 type ControllerFilter interface {
 	//This is called before the Controller is called. 
 	//returning false will stop the execution
 	Before(*Txn) bool
+}
+
+// Additional hooks if you need more granularity into the lifecycle
+type FilterAdvanced interface {
+	ControllerFilter
+
+	//Called immediately before the response is written.
+	BeforeWrite(*Response, *Txn)
 
 	//This is called after the controller is called.
-	After(*Response, *Txn)
+	//The response has already been sent 
+	AfterWrite(*Response, *Txn)
 }
 
 // Configuration for a specific controller.
