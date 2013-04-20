@@ -81,6 +81,10 @@ func (this *Session) BeforeHtmlWrite(txn *Txn, writer http.ResponseWriter) bool 
 
 	//session will always have session_id param
 	if len(txn.Session.Map) > 1 {
+        //We set an internal flag in the session, so 
+        //if keys are removed now we always save the session. 
+        txn.Session.Put("_persisted", true)
+
 		//only write the session if there is something in it
 		cookie := &http.Cookie{
 			Name:   "session_id",
