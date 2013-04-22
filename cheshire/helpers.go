@@ -8,8 +8,7 @@ import (
 	// "hash"
 	"io"
 	"strings"
-	// "strconv"
-	// "time"
+	"log"
 	"sync"
 )
 
@@ -52,15 +51,15 @@ type Events struct {
 }
 
 type Event struct {
-	eventType string
-	eventMessage string
+	Type string
+	Message string
 }
 
 // Creates a new Events object
 func NewEvents() *Events{
 	events := &Events{
-		inchan := make(chan Event, 10),
-		outchans := make([]chan Event, 0),
+		inchan : make(chan Event, 10),
+		outchans : make([]chan Event, 0),
 	}
 	go func(events *Events) {
 		for {
@@ -69,12 +68,9 @@ func NewEvents() *Events{
 			for _, out := range(events.outchans) {
 				go func(event Event) {
 					select {
-						case err := out <- event:
-							if err != nil {
-								//remove this channel
-								event.remove(out)
-							}
-						default: //the event skips if the channel is unavail. 
+						case out <- event:
+						default: //the channel is unavail. 
+							// we assume the channel owner will clean up..
 					}
 				}(e)
 			}
@@ -86,7 +82,7 @@ func NewEvents() *Events{
 
 // Emits this message to all the listening channels
 func (this *Events) Emit(eventType, eventMessage string) {
-	inchan <- Event{eventType: eventType, eventMessage:eventMessage}
+	this.inchan <- Event{Type: eventType, Message:eventMessage}
 }
 
 func (this *Events) Listen(eventchan chan Event) {
@@ -104,7 +100,7 @@ func (this *Events) Unlisten(eventchan chan Event) {
 func (this *Events) remove(eventchan chan Event) {
 	ch := make([]chan Event, 0)
 	for _, c := range(this.outchans) {
-		if c != eventType {
+		if c != eventchan {
 			ch = append(ch, c)
 		} else {
 			log.Println("Found channel, removing...")

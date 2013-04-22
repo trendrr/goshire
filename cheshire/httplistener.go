@@ -23,7 +23,7 @@ func (this *HttpWriter) Type() string {
 }
 
 func (conn *HttpWriter) Write(response *Response) (int, error) {
-
+	bytes := 0
 	json, err := json.Marshal(response)
 	if err != nil {
 		//TODO: uhh, do something..
@@ -33,14 +33,23 @@ func (conn *HttpWriter) Write(response *Response) (int, error) {
 		conn.Writer.Header().Set("Content-Type", "application/json")
 		conn.Writer.WriteHeader(response.StatusCode())
 	})
-	conn.Writer.Write(json)
-	conn.Writer.Write([]byte("\n"))
-	v, ok := conn.Writer.(http.Flusher)
-	if ok {
-		v.Flush()
+	b, err := conn.Writer.Write(json)
+	if err != nil {
+		return bytes, err
 	}
+	bytes += b
+	b, err = conn.Writer.Write([]byte("\n"))
+	if err != nil {
+		return bytes, err
+	}
+	bytes += b
 
-	return 200, err
+	flusher, ok := conn.Writer.(http.Flusher)
+	if !ok {
+		return bytes, fmt.Errorf("Wrong type in http writer!")
+	}
+	flusher.Flush()
+	return bytes, err
 }
 
 type httpHandler struct {
