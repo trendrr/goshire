@@ -8,8 +8,6 @@ import (
 	// "hash"
 	"io"
 	"strings"
-	"log"
-	"sync"
 )
 
 // Sends an error response to the channel
@@ -41,70 +39,4 @@ func RandString(length int) string {
 	str := strings.TrimRight(
 		base32.StdEncoding.EncodeToString(k), "=")
 	return str[:length]
-}
-
-// Simple multiplex event handler
-type Events struct {
-	inchan chan Event
-	outchans []chan Event
-	lock sync.Mutex
-}
-
-type Event struct {
-	Type string
-	Message string
-}
-
-// Creates a new Events object
-func NewEvents() *Events{
-	events := &Events{
-		inchan : make(chan Event, 10),
-		outchans : make([]chan Event, 0),
-	}
-	go func(events *Events) {
-		for {
-			e := <- events.inchan
-			events.lock.Lock()
-			for _, out := range(events.outchans) {
-				go func(event Event) {
-					select {
-						case out <- event:
-						default: //the channel is unavail. 
-							// we assume the channel owner will clean up..
-					}
-				}(e)
-			}
-			events.lock.Unlock()
-		}
-	}(events)	
-	return events
-}
-
-// Emits this message to all the listening channels
-func (this *Events) Emit(eventType, eventMessage string) {
-	this.inchan <- Event{Type: eventType, Message:eventMessage}
-}
-
-func (this *Events) Listen(eventchan chan Event) {
-	this.lock.Lock()
-	defer this.lock.Unlock()
-	this.outchans = append(this.outchans, eventchan)
-}
-
-func (this *Events) Unlisten(eventchan chan Event) {
-	this.lock.Lock()
-	defer this.lock.Unlock()
-	this.remove(eventchan)
-}
-
-func (this *Events) remove(eventchan chan Event) {
-	ch := make([]chan Event, 0)
-	for _, c := range(this.outchans) {
-		if c != eventchan {
-			ch = append(ch, c)
-		} else {
-			log.Println("Found channel, removing...")
-		}
-	}
-	this.outchans = ch
 }
