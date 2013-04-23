@@ -39,6 +39,18 @@ type HttpClient struct {
 	Address string
 }
 
+// does an asynchrounous api call to the requested address.
+func HttpApiCall(address string, req *Request, responseChan chan *Response, errorChan chan error) {
+	cl := NewHttpClient(address)
+	cl.ApiCall(req, responseChan, errorChan)
+}
+
+// does a synchronous api call to the requested address.
+func HttpApiCallSync(address string, req *Request, timeout time.Duration) (*Response, error) {
+	cl := NewHttpClient(address)
+	res, err := cl.ApiCallSync(req, timeout)
+}
+
 func NewHttpClient(address string) *HttpClient {
 	return &HttpClient{
 		Address: address,
