@@ -10,18 +10,54 @@ import (
 
 var manager *Manager 
 
+// These are the endpoints required for 
+// cheshire sharding to work. 
+const (
+    //router table get endpoint
+    // response format 
+    // {
+    //  "strest" :{...}
+    //  "router_table" : <the router table>
+    // }
+    ROUTERTABLE_GET = "/__c/rt/get"
+    ROUTERTABLE_SET = "/__c/rt/set"
+    PARTITION_LOCK = "/__c/pt/lock"
+    PARTITION_UNLOCK = "/__c/pt/unlock"
+
+    // Delete a partition from this server
+    PARTITION_DELETE = "/__c/pt/delete"
+
+    // Is a ping endpoint to check for liveness and 
+    // to check the revision of the router table.
+    // response format 
+    // {
+    //  "strest" :{...}
+    //  "ts" : <ISOFORMATED TIMESTAMP>
+    //  "rt_revision" : <router table revision>
+    // }
+    CHECKIN = "/__c/checkin"
+
+    // Creates a stream of data for the given partition
+    // @param partition the int partition 
+    DATA_PULL = "/__c/data/pull"
+
+    // Push data at the given partition
+    // the pushed data should overwrite any data that exists at the given key
+    DATA_PUSH = "/__c/data/push"
+)
+
 // Sets the partitioner and registers the necessary 
 // controllers
 func setupPartitionControllers(man *Manager) {
     manager = man
 
     //register the controllers.
-    cheshire.RegisterApi("/chs/rt/get", "GET", GetRouterTable)
-    cheshire.RegisterApi("/chs/rt/set", "POST", SetRouterTable)
-    cheshire.RegisterApi("/chs/lock", "POST", Lock)
-    cheshire.RegisterApi("/chs/unlock", "POST", Unlock)
-    cheshire.RegisterApi("/chs/checkin", "GET", Checkin)
-    // cheshire.RegisterApi("/chs/data/pull", "GET", DataPull)
+    cheshire.RegisterApi(ROUTERTABLE_GET, "GET", GetRouterTable)
+    cheshire.RegisterApi(ROUTERTABLE_SET, "POST", SetRouterTable)
+    cheshire.RegisterApi(PARTITION_LOCK, "POST", Lock)
+    cheshire.RegisterApi(PARTITION_UNLOCK, "POST", Unlock)
+    cheshire.RegisterApi(CHECKIN, "GET", Checkin)
+    cheshire.RegisterApi(DATA_PULL, "GET", DataPull)
 }
 
 func Checkin(txn *cheshire.Txn) {
@@ -31,7 +67,7 @@ func Checkin(txn *cheshire.Txn) {
         revision = table.Revision
     }
     response := cheshire.NewResponse(txn)
-    response.Put("router_table_revision", revision)
+    response.Put("rt_revision", revision)
     response.Put("ts", time.Now())
     txn.Write(response)
 }
@@ -106,7 +142,7 @@ func Unlock(txn *cheshire.Txn) {
 }
 
 
-func Data(txn *cheshire.Txn) {  
+func DataPull(txn *cheshire.Txn) {  
     part, ok := txn.Params().GetInt("partition")
     if !ok {
         cheshire.SendError(txn, 406, fmt.Sprintf("partition param is manditory"))

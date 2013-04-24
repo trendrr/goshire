@@ -16,10 +16,13 @@ type Partitioner interface {
     
     //Gets all the data for a specific partition
     //should send total # of items on the finished chanel when complete
-    Data(partition int, deleteData bool, dataChan chan *dynmap.DynMap, finished chan int, errorChan chan error)
+    Data(partition int, dataChan chan *dynmap.DynMap, finished chan int, errorChan chan error)
 
     //Imports a data item
     SetData(partition int, data *dynmap.DynMap)
+
+    //Deletes the requested partition
+    DeleteData(partition int)
 }
 
 type DummyPartitioner struct {
@@ -117,34 +120,34 @@ func (this *Manager) LockPartition(partition int) error {
     return nil
 }
 
-// Locks all remote.
-func (this *Manager) LockPartitionRemote(partition int) error {
-    clients, err := this.Clients(partition)
-    if err != nil {
-        return err
-    }
-    for _,c := range(clients) {
-        req := cheshire.NewRequest("/chs/lock", "POST")
-        req.Params().Put("partitions", partition)
+// // Locks all remote.
+// func (this *Manager) LockPartitionRemote(partition int) error {
+//     clients, err := this.Clients(partition)
+//     if err != nil {
+//         return err
+//     }
+//     for _,c := range(clients) {
+//         req := cheshire.NewRequest("/chs/lock", "POST")
+//         req.Params().Put("partitions", partition)
 
 
-        res, err := c.ApiCallSync(req, time.Second*10)
+//         res, err := c.ApiCallSync(req, time.Second*10)
     
-        if err != nil {
-            //retry once
-            res, err = c.ApiCallSync(req, time.Second*10)
-            if err != nil {
-                log.Printf("Error locking remote: %s", err)    
-            } else if res.StatusCode() != 200 {
-                log.Printf("Error lock %s", res)
-            }
-        } else if res.StatusCode() != 200 {
-            log.Printf("Error lock %s", res)
-        }
-    }
-    //TODO: fail if all locks fail
-    return nil
-}
+//         if err != nil {
+//             //retry once
+//             res, err = c.ApiCallSync(req, time.Second*10)
+//             if err != nil {
+//                 log.Printf("Error locking remote: %s", err)    
+//             } else if res.StatusCode() != 200 {
+//                 log.Printf("Error lock %s", res)
+//             }
+//         } else if res.StatusCode() != 200 {
+//             log.Printf("Error lock %s", res)
+//         }
+//     }
+//     //TODO: fail if all locks fail
+//     return nil
+// }
 
 func (this *Manager) UnlockPartition(partition int) error {
     this.lock.Lock()
@@ -154,30 +157,30 @@ func (this *Manager) UnlockPartition(partition int) error {
 }
 
 
-func (this *Manager) UnlockPartitionRemote(partition int) error {
-    clients, err := this.Clients(partition)
-    if err != nil {
-        return err
-    }
-    for _,c := range(clients) {
-        req := cheshire.NewRequest("/chs/unlock", "POST")
-        req.Params().Put("partitions", partition)
-        res, err := c.ApiCallSync(req, time.Second*10)
-        if err != nil {
-            //retry once
-            res, err = c.ApiCallSync(req, time.Second*10)
-            if err != nil {
-                log.Printf("Error locking remote: %s", err)    
-            } else if res.StatusCode() != 200 {
-                log.Printf("Error lock %s", res)
-            }
-        } else if res.StatusCode() != 200 {
-            log.Printf("Error lock %s", res)
-        }
-    }
-    //TODO: fail if all locks fail
-    return nil
-} 
+// func (this *Manager) UnlockPartitionRemote(partition int) error {
+//     clients, err := this.Clients(partition)
+//     if err != nil {
+//         return err
+//     }
+//     for _,c := range(clients) {
+//         req := cheshire.NewRequest("/chs/unlock", "POST")
+//         req.Params().Put("partitions", partition)
+//         res, err := c.ApiCallSync(req, time.Second*10)
+//         if err != nil {
+//             //retry once
+//             res, err = c.ApiCallSync(req, time.Second*10)
+//             if err != nil {
+//                 log.Printf("Error locking remote: %s", err)    
+//             } else if res.StatusCode() != 200 {
+//                 log.Printf("Error lock %s", res)
+//             }
+//         } else if res.StatusCode() != 200 {
+//             log.Printf("Error lock %s", res)
+//         }
+//     }
+//     //TODO: fail if all locks fail
+//     return nil
+// } 
 
 // Returns the list of partitions I am responsible for 
 // returns an empty list if I am not responsible for any
@@ -332,92 +335,92 @@ func (this *Manager) RouterTable() (*RouterTable, error) {
 }
 
 
-//Rebalance 
-//Sync any data from remote, remove any partitions that
-//we are no longer in charge of.
-func (this *Manager) Rebalance(newtable, oldtable *RouterTable) {
+// //Rebalance 
+// //Sync any data from remote, remove any partitions that
+// //we are no longer in charge of.
+// func (this *Manager) Rebalance(newtable, oldtable *RouterTable) {
    
-    newPartitions := make([]int, 0)
+//     newPartitions := make([]int, 0)
 
-    //yikes, this is an ugly way to do this..
-    for _,n := range(newtable.MyEntry.Partitions) {
-        contains := false
-        for _, o := range(oldtable.MyEntry.Partitions) {
-            if n == o {
-                contains = true
-            }
-        }
-        if !contains {
-            newPartitions = append(newPartitions, n)
-        }
-    }
-
-
-    for _, n := range(newPartitions) {
-        //lock then move the data.
-        this.DataPull(n)
-
-    }
-
-    //now look for items removed in new table and delete those partitions.
-
-}
+//     //yikes, this is an ugly way to do this..
+//     for _,n := range(newtable.MyEntry.Partitions) {
+//         contains := false
+//         for _, o := range(oldtable.MyEntry.Partitions) {
+//             if n == o {
+//                 contains = true
+//             }
+//         }
+//         if !contains {
+//             newPartitions = append(newPartitions, n)
+//         }
+//     }
 
 
+//     for _, n := range(newPartitions) {
+//         //lock then move the data.
+//         this.DataPull(n)
 
-func (this *Manager) DataPull(partition int) error {
-    this.LockPartition(partition)
-    this.LockPartitionRemote(partition)
+//     }
 
-    defer this.UnlockPartition(partition)
-    defer this.UnlockPartitionRemote(partition)
+//     //now look for items removed in new table and delete those partitions.
 
-    clients, err := this.Clients(partition)
-    if err != nil {
-        log.Println("ERROR %s", err)
-        //TODO: umm, wtf?
-    }
+// }
 
-    var client cheshire.Client
-    //now choose a good client
-    for _, c := range(clients) {
-        //need to make sure this client is not me.
-        //TODO: we also need to make sure this partition existed on this node
-        //in the old table. (Or we need this to be a precondition!)
-        client = c
-    }
 
-    request := cheshire.NewRequest("/chs/data/pull", "GET")
-    request.SetTxnAcceptMulti()
-    responseChan := make(chan *cheshire.Response, 100)
-    errorChan := make(chan error)
 
-    client.ApiCall(request, responseChan, errorChan)
-    for {
-        select {
-            case response := <- responseChan :
-                log.Printf("Data pull response: %s", response)
-                if response.StatusCode() != 200 {
-                    //umm, what to do ?
-                    log.Printf("BAD Response: %s", response)
-                }
-                mp := response.ToDynMap()
-                data, ok := mp.GetDynMap("data")
-                if ok {
-                    this.partitioner.SetData(partition, data)
-                }
-                if response.TxnStatus() == "complete" {
-                    //yay!
-                    log.Println("FINISHED DATA PULL for partition %d", partition)
-                    return nil
-                }
-            case err := <- errorChan :
-                //TODO: try a different client?
-                return err
-        }
-    }
-    return nil
-}
+// func (this *Manager) DataPull(partition int) error {
+//     this.LockPartition(partition)
+//     this.LockPartitionRemote(partition)
+
+//     defer this.UnlockPartition(partition)
+//     defer this.UnlockPartitionRemote(partition)
+
+//     clients, err := this.Clients(partition)
+//     if err != nil {
+//         log.Println("ERROR %s", err)
+//         //TODO: umm, wtf?
+//     }
+
+//     var client cheshire.Client
+//     //now choose a good client
+//     for _, c := range(clients) {
+//         //need to make sure this client is not me.
+//         //TODO: we also need to make sure this partition existed on this node
+//         //in the old table. (Or we need this to be a precondition!)
+//         client = c
+//     }
+
+//     request := cheshire.NewRequest("/chs/data/pull", "GET")
+//     request.SetTxnAcceptMulti()
+//     responseChan := make(chan *cheshire.Response, 100)
+//     errorChan := make(chan error)
+
+//     client.ApiCall(request, responseChan, errorChan)
+//     for {
+//         select {
+//             case response := <- responseChan :
+//                 log.Printf("Data pull response: %s", response)
+//                 if response.StatusCode() != 200 {
+//                     //umm, what to do ?
+//                     log.Printf("BAD Response: %s", response)
+//                 }
+//                 mp := response.ToDynMap()
+//                 data, ok := mp.GetDynMap("data")
+//                 if ok {
+//                     this.partitioner.SetData(partition, data)
+//                 }
+//                 if response.TxnStatus() == "complete" {
+//                     //yay!
+//                     log.Println("FINISHED DATA PULL for partition %d", partition)
+//                     return nil
+//                 }
+//             case err := <- errorChan :
+//                 //TODO: try a different client?
+//                 return err
+//         }
+//     }
+//     return nil
+// }
 
 //sets a new router table
 // returns the old router table, or error
