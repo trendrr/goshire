@@ -49,6 +49,7 @@ func HttpApiCall(address string, req *Request, responseChan chan *Response, erro
 func HttpApiCallSync(address string, req *Request, timeout time.Duration) (*Response, error) {
 	cl := NewHttpClient(address)
 	res, err := cl.ApiCallSync(req, timeout)
+	return res, err
 }
 
 func NewHttpClient(address string) *HttpClient {
@@ -159,12 +160,13 @@ func NewJsonClient(host string, port int) (*JsonClient) {
 // more connections
 // if a connection already exists it will be closed
 func (this *JsonClient) Connect() error {
-	conn, err := client.createConn()
+	conn, err := this.createConn()
 	if err != nil {
-		return nil, err
+		return err
 	}
-	client.conn = conn
-	go client.eventLoop()
+	this.conn = conn
+	go this.eventLoop()
+	return nil
 }
 
 //Close this client.
@@ -373,7 +375,7 @@ func newCheshireConn(addr string, disconnect chan *cheshireConn, writeTimeout ti
 // this will check the max inflight, and will block for max 20 seconds waiting for the # inflilght to go down.
 // if inflight does not go down it will close the connection and return error.
 // errors are returned, not sent to the errorchan
-func (this *cheshireConn) sendRequest(req *Request, resultChan chan *Response, errorChan chan error) (*cheshireRequest, error) {
+func (this *cheshireConn) sendRequest(request *Request, resultChan chan *Response, errorChan chan error) (*cheshireRequest, error) {
 
 	sleeps := 0
 	for len(this.requests) > this.maxInFlight {
@@ -390,7 +392,7 @@ func (this *cheshireConn) sendRequest(req *Request, resultChan chan *Response, e
 		return nil, fmt.Errorf("Not connected")
 	}
 	req := &cheshireRequest{
-		req:        req,
+		req:        request,
 		resultChan: resultChan,
 		errorChan:  errorChan,
 	}
