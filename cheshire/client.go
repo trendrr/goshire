@@ -122,15 +122,28 @@ type JsonClient struct {
 	Port     int
 	PingUri  string
 	isClosed bool
+	//The connection
+	//TODO: this should be a pool
 	conn     *cheshireConn
-	//channel is alerted when the connection is disconnected.
+	
+	//this channel is alerted when the connection is disconnected.
 	disconnectChan chan *cheshireConn
 	exitChan       chan int
 	connectLock    sync.RWMutex
+
+	//The max number of requests that can be waiting for a response.
+	//When max inflight is reached, the client will start
+	//blocking and waiting for room.  will 
+	//connection will eventually close if it waits too long.
+	MaxInflight int
+
+
+	PoolSize int
 }
 
-//Creates a connects 
-func NewJsonClient(host string, port int) (*JsonClient, error) {
+//Creates a new Json client 
+// Remember to call client.Connect
+func NewJsonClient(host string, port int) (*JsonClient) {
 	client := &JsonClient{
 		Host:           host,
 		Port:           port,
@@ -139,14 +152,19 @@ func NewJsonClient(host string, port int) (*JsonClient, error) {
 		exitChan:       make(chan int),
 		PingUri:        "/ping",
 	}
+	return client
+}
+
+// Starts the json event loop and initializes one or
+// more connections
+// if a connection already exists it will be closed
+func (this *JsonClient) Connect() error {
 	conn, err := client.createConn()
 	if err != nil {
 		return nil, err
 	}
 	client.conn = conn
 	go client.eventLoop()
-
-	return client, nil
 }
 
 //Close this client.
@@ -162,7 +180,7 @@ func (this *JsonClient) createConn() (*cheshireConn, error) {
 	if err != nil {
 		return nil, err
 	}
-
+	c.maxInFlight = this.MaxInflight
 	go c.eventLoop()
 	return c, nil
 }
@@ -283,19 +301,16 @@ func (this *JsonClient) doApiCall(req *Request, responseChan chan *Response, err
 	if req.TxnId() == "" {
 		req.SetTxnId(NewTxnId())
 	}
-	r := newRequest(req, responseChan, errorChan)
-
 	conn, err := this.connection()
-
 	if err != nil {
-		log.Println("Sending error %s", err)
 		errorChan <- err
-	} else if !conn.connected {
-		errorChan <- fmt.Errorf("Not connected")
-	} else {
-		conn.outgoingChan <- r
+		return conn, nil
 	}
-
+	r, err := conn.sendRequest(req, responseChan, errorChan)
+	if err != nil {
+		errorChan <- err
+		return conn, r
+	}
 	return conn, r
 }
 
@@ -313,6 +328,7 @@ type cheshireConn struct {
 	//map of txnId to request
 	requests    map[string]*cheshireRequest
 	connectedAt time.Time
+	maxInFlight int
 }
 
 //wrap a request so we dont lose track of the result channels
@@ -322,13 +338,7 @@ type cheshireRequest struct {
 	errorChan  chan error
 }
 
-func newRequest(req *Request, resultChan chan *Response, errorChan chan error) *cheshireRequest {
-	return &cheshireRequest{
-		req:        req,
-		resultChan: resultChan,
-		errorChan:  errorChan,
-	}
-}
+
 
 func newCheshireConn(addr string, disconnect chan *cheshireConn, writeTimeout time.Duration) (*cheshireConn, error) {
 	conn, err := net.DialTimeout("tcp", addr, time.Second)
@@ -357,6 +367,35 @@ func newCheshireConn(addr string, disconnect chan *cheshireConn, writeTimeout ti
 		connectedAt:    time.Now(),
 	}
 	return nc, nil
+}
+
+// Sends a new request.
+// this will check the max inflight, and will block for max 20 seconds waiting for the # inflilght to go down.
+// if inflight does not go down it will close the connection and return error.
+// errors are returned, not sent to the errorchan
+func (this *cheshireConn) sendRequest(req *Request, resultChan chan *Response, errorChan chan error) (*cheshireRequest, error) {
+
+	sleeps := 0
+	for len(this.requests) > this.maxInFlight {
+		if sleeps > 20 {
+			//should close this connection..
+			this.Close()
+			return nil, fmt.Errorf("Max inflight sustained for more then 20 seconds, fail")
+		}
+		time.Sleep(1 * time.Second)
+		sleeps++
+	}
+
+	if !this.connected {
+		return nil, fmt.Errorf("Not connected")
+	}
+	req := &cheshireRequest{
+		req:        req,
+		resultChan: resultChan,
+		errorChan:  errorChan,
+	}
+	this.outgoingChan <- req
+	return req, nil
 }
 
 func (this *cheshireConn) Close() {
