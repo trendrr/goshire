@@ -5,6 +5,9 @@ import(
     "sync"
 )
 
+
+
+
 // This is a special logger.  It has the same methods as the standard golang Logger class,
 // but allows you to register for updates.
 // This allows us to expose the logging events easily via an api call.
@@ -20,6 +23,62 @@ type Logger struct {
 type LoggerEvent struct {
     Type string
     Message string
+}
+
+var log = NewLogger()
+
+func Fatal(v ...interface{}) {
+    log.Fatal(v)
+}
+func Fatalf(format string, v ...interface{}) {
+    log.Fatal(format, v)
+}
+func Fatalln(v ...interface{}) {
+    log.Fatalln(v)
+}
+func Flags() int {
+    return log.Flags()
+}
+func Panic(v ...interface{}) {
+    log.Panic(v)
+}
+func Panicf(format string, v ...interface{}) {
+    log.Panicf(format, v)
+}
+func Panicln(v ...interface{}) {
+    log.Panicln(v)
+}
+func Prefix() string {
+    return log.Prefix()
+}
+func Print(v ...interface{}) {
+    log.Print(v)
+}
+func Printf(format string, v ...interface{}) {
+    log.Printf(format, v)
+}
+func Println(v ...interface{}) {
+    log.Println(v)
+}
+func SetFlags(flag int) {
+    log.SetFlags(flag)
+}
+func SetOutput(w io.Writer) {
+    log.SetOutput(w)
+}
+func SetPrefix(prefix string) {
+    log.SetPrefix(prefix)
+}
+
+func Listen(eventchan chan LoggerEvent) {
+    log.Listen(eventchan)
+}
+
+func Unlisten(eventchan chan LoggerEvent) {
+    log.Unlisten(eventchan)
+}
+func Emit(eventType, eventMessage string) {
+    log.Emit(eventType, eventMessage)
 }
 
 // Creates a new Logger object
