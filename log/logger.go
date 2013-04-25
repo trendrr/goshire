@@ -1,7 +1,7 @@
 package cheshire
 
 import(
-    "log"
+    golog "log"
     "sync"
 )
 
@@ -12,7 +12,7 @@ import(
 // but allows you to register for updates.
 // This allows us to expose the logging events easily via an api call.
 type Logger struct {
-    log.Logger
+    golog.Logger
     inchan chan LoggerEvent
     outchans []chan LoggerEvent
     lock sync.Mutex
@@ -63,9 +63,6 @@ func Println(v ...interface{}) {
 func SetFlags(flag int) {
     log.SetFlags(flag)
 }
-func SetOutput(w io.Writer) {
-    log.SetOutput(w)
-}
 func SetPrefix(prefix string) {
     log.SetPrefix(prefix)
 }
@@ -89,7 +86,7 @@ func NewLogger() *Logger{
         Type : "log",
     }
 
-    logger.Logger = *log.New(logger, "", 0)
+    logger.Logger = *golog.New(logger, "", 0)
 
     go func(logger *Logger) {
         for {
@@ -116,7 +113,7 @@ func NewLogger() *Logger{
 func (this *Logger) Write(p []byte) (n int, err error) {
     this.Emit("log", string(p))
     //also log to stdout
-    log.Println(string(p))
+    golog.Println(string(p))
     return len(p), nil
 }
 
@@ -144,7 +141,7 @@ func (this *Logger) remove(eventchan chan LoggerEvent) {
         if c != eventchan {
             ch = append(ch, c)
         } else {
-            log.Println("Removing channel from cheshire.Logger...")
+            golog.Println("Removing channel from cheshire.Logger...")
         }
     }
     this.outchans = ch
