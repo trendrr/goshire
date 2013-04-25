@@ -156,6 +156,11 @@ func NewJsonClient(host string, port int) (*JsonClient) {
 	return client
 }
 
+// returns the total # of requests that are currently inflight (i.e. txn in progress)
+func (this *JsonClient) CurrentInFlight() int {
+	return len(this.conn.requests)
+}
+
 // Starts the json event loop and initializes one or
 // more connections
 // if a connection already exists it will be closed
