@@ -76,8 +76,7 @@ func ToInt64(value interface{}) (i int64, err error) {
 		log.Println("uhh int64 ", v)
 
 	}
-	//TODO: baaaad
-	return -1, nil
+	return -1, fmt.Errorf("Could not convert")
 }
 
 func ToString(value interface{}) string {

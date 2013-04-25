@@ -35,7 +35,6 @@ func main() {
     bootstrap.AddFilters(globalFilter, cheshire.NewSession(cache, 3600))
 
 
-    log.Println("HERE:1")
     //a ping controller api controller.  
     pinger := func(txn *cheshire.Txn) {
         // log.Printf("PING! %s", request.Strest.Params)
@@ -46,7 +45,6 @@ func main() {
     }
     //now register the api call
     cheshire.RegisterApi("/ping", "GET", pinger, pingFilter)
-    log.Println("HERE:1")
     
     //an example html page
     four04 := func(txn *cheshire.Txn) {

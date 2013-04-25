@@ -8,8 +8,6 @@ import (
 	// "hash"
 	"io"
 	"strings"
-	// "strconv"
-	// "time"
 )
 
 // Sends an error response to the channel

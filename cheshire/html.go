@@ -51,6 +51,10 @@ func Flash(txn *Txn, severity, message string) {
 
 //Adds the special variables to the context.
 func contxt(txn *Txn, context map[string]interface{}) map[string]interface{} {
+	if context == nil {
+		context = make(map[string]interface{})
+	}
+
 	context["request"] = txn.Request
 	context["params"] = txn.Request.Params().Map
 
@@ -210,10 +214,10 @@ func (this *StaticFileController) Config() *ControllerConfig {
 	return this.Conf
 }
 
-func (this StaticFileController) HandleRequest(txn *Txn) {
+func (this *StaticFileController) HandleRequest(txn *Txn) {
 	//Empty method, this is never called because we have the HttpHijack method in place
 }
 
-func (this StaticFileController) HttpHijack(writer http.ResponseWriter, req *http.Request, serverConfig *ServerConfig) {
+func (this *StaticFileController) HttpHijack(writer http.ResponseWriter, req *http.Request, serverConfig *ServerConfig) {
 	this.Handler.ServeHTTP(writer, req)
 }
