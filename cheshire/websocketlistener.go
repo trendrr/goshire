@@ -43,14 +43,16 @@ func (wc WebsocketController) Config() *ControllerConfig {
 }
 func (wc WebsocketController) HandleRequest(txn *Txn) {
 	//do nothing, this should never be called. 
+	log.Println("ERROR! Websocket Controller HandleRequest should never execute")
 }
 
-func NewWebsocketController(route string, config *ServerConfig) WebsocketController {
-	var wc = new(WebsocketController)
-	wc.Conf = NewControllerConfig(route)
-	wc.serverConfig = config
-	wc.Handler = websocket.Handler(func(ws *websocket.Conn) { wc.HandleWCConnection(ws) }) //use anon function because a method is impossible
-	return *wc
+func NewWebsocketController(route string, config *ServerConfig) *WebsocketController {
+	ws := &WebsocketController{
+		Conf : NewControllerConfig(route),
+		serverConfig : config,
+	}
+	ws.Handler = websocket.Handler(func(con *websocket.Conn) { ws.HandleWCConnection(con) })
+	return ws
 }
 
 // implements the HttpHijacker interface so we can handle the request directly.

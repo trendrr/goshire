@@ -58,8 +58,8 @@ func (this *Bootstrap) InitStaticFiles() {
 }
 
 func (this *Bootstrap) InitWebSockets() {
-	if this.Conf.Exists("listeners.http.websockets.route") {
-		route, ok := this.Conf.GetString("listeners.http.websockets.route")
+	if this.Conf.Exists("http.websockets.route") {
+		route, ok := this.Conf.GetString("http.websockets.route")
 		if ok {
 			this.Conf.Register([]string{"GET", "POST", "PUT", "DELETE"}, NewWebsocketController(route, this.Conf))
 		}

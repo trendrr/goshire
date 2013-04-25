@@ -8,7 +8,6 @@ import (
 	"log"
 	"net"
 	"sync"
-	// "github.com/trendrr/cheshire-golang/dynmap"
 )
 
 type JsonWriter struct {
@@ -20,8 +19,7 @@ type JsonWriter struct {
 func (this *JsonWriter) Write(response *Response) (int, error) {
 	json, err := json.Marshal(response)
 	if err != nil {
-		//TODO: uhh, do something..
-		log.Print(err)
+		return 0, err
 	}
 	defer this.writerLock.Unlock()
 	this.writerLock.Lock()
