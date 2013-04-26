@@ -93,13 +93,12 @@ func NewLogger() *Logger{
             e := <- logger.inchan
             logger.lock.Lock()
             for _, out := range(logger.outchans) {
-                go func(event LoggerEvent) {
-                    select {
-                        case out <- event:
-                        default: //the channel is unavail. 
-                            // we assume the channel owner will clean up..
-                    }
-                }(e)
+                // golog.Printf("channel: %s", out)
+                select {
+                    case out <- e:
+                    default: //the channel is unavail. 
+                        // we assume the channel owner will clean up..
+                }
             }
             logger.lock.Unlock()
         }
