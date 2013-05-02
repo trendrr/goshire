@@ -184,7 +184,7 @@ func (this *DynMap) GetTime(key string) (time.Time, bool) {
 	return t, true
 }
 
-func (this *DynMap) GetTimeOrDefault(key string, def time.Time) time.Time {
+func (this *DynMap) MustTime(key string, def time.Time) time.Time {
 	tmp, ok := this.GetTime(key)
 	if !ok {
 		return def
