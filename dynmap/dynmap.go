@@ -20,6 +20,12 @@ type DynMaper interface {
 	ToDynMap() *DynMap
 }
 
+// Creates a new dynmap
+func New() *DynMap {
+	return &DynMap{make(map[string]interface{})}	
+}
+
+// Deprecated.  use New() instead
 func NewDynMap() *DynMap {
 	return &DynMap{make(map[string]interface{})}
 }
