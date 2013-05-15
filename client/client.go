@@ -1,10 +1,11 @@
-package cheshire
+package client
 
 import (
 	"bufio"
 	"encoding/json"
 	"fmt"
 	"github.com/trendrr/cheshire-golang/dynmap"
+	"github.com/trendrr/cheshire-golang/cheshire"
 	"io"
 	"io/ioutil"
 	"log"
@@ -27,9 +28,9 @@ func NewTxnId() string {
 type Client interface {
 	// Does a synchronous api call.  times out after the requested timeout.
 	// This will automatically set the txn accept to single
-	ApiCallSync(req *Request, timeout time.Duration) (*Response, error)
+	ApiCallSync(req *cheshire.Request, timeout time.Duration) (*cheshire.Response, error)
 	// Does an api call.
-	ApiCall(req *Request, responseChan chan *Response, errorChan chan error)
+	ApiCall(req *cheshire.Request, responseChan chan *cheshire.Response, errorChan chan error)
 
 	//Closes this client
 	Close()
@@ -40,13 +41,13 @@ type HttpClient struct {
 }
 
 // does an asynchrounous api call to the requested address.
-func HttpApiCall(address string, req *Request, responseChan chan *Response, errorChan chan error) {
+func HttpApiCall(address string, req *cheshire.Request, responseChan chan *cheshire.Response, errorChan chan error) {
 	cl := NewHttpClient(address)
 	cl.ApiCall(req, responseChan, errorChan)
 }
 
 // does a synchronous api call to the requested address.
-func HttpApiCallSync(address string, req *Request, timeout time.Duration) (*Response, error) {
+func HttpApiCallSync(address string, req *cheshire.Request, timeout time.Duration) (*cheshire.Response, error) {
 	cl := NewHttpClient(address)
 	res, err := cl.ApiCallSync(req, timeout)
 	return res, err
@@ -62,7 +63,7 @@ func (this *HttpClient) Close() {
 	//do nothing..
 }
 
-func (this *HttpClient) ApiCall(req *Request, responseChan chan *Response, errorChan chan error) {
+func (this *HttpClient) ApiCall(req *cheshire.Request, responseChan chan *cheshire.Response, errorChan chan error) {
 	go func() {
 		//TODO we could do something that allows streaming http
 		res, err := this.ApiCallSync(req, 4*60*time.Second)
@@ -74,7 +75,7 @@ func (this *HttpClient) ApiCall(req *Request, responseChan chan *Response, error
 	}()
 }
 
-func (this *HttpClient) ApiCallSync(req *Request, timeout time.Duration) (*Response, error) {
+func (this *HttpClient) ApiCallSync(req *cheshire.Request, timeout time.Duration) (*cheshire.Response, error) {
 	uri := req.Uri()
 	pms, err := req.Params().MarshalURL()
 	if err != nil {
@@ -110,7 +111,7 @@ func (this *HttpClient) ApiCallSync(req *Request, timeout time.Duration) (*Respo
 	}
 
 	//convert to a strest response2
-	var response = &Response{*dynmap.NewDynMap()}
+	var response = &cheshire.Response{*dynmap.NewDynMap()}
 	err = response.UnmarshalJSON(body)
 	if err != nil {
 		return nil, err
@@ -118,6 +119,10 @@ func (this *HttpClient) ApiCallSync(req *Request, timeout time.Duration) (*Respo
 	return response, nil
 }
 
+
+// Client that utilizes the json protocol and
+// connections are static.
+// maintains an internal connection pool.
 type JsonClient struct {
 	Host     string
 	Port     int
@@ -125,7 +130,7 @@ type JsonClient struct {
 	isClosed bool
 	//The connection
 	//TODO: this should be a pool
-	conn     *cheshireConn
+	conn     []*cheshireConn
 	
 	//this channel is alerted when the connection is disconnected.
 	disconnectChan chan *cheshireConn
@@ -134,12 +139,16 @@ type JsonClient struct {
 
 	//The max number of requests that can be waiting for a response.
 	//When max inflight is reached, the client will start
-	//blocking and waiting for room.  will 
+	//blocking and waiting for room.
 	//connection will eventually close if it waits too long.
 	MaxInflight int
 
-
+	// The connection pool size
 	PoolSize int
+
+
+	count uint64
+	maxInFlightPer int
 }
 
 //Creates a new Json client 
@@ -152,24 +161,44 @@ func NewJsonClient(host string, port int) (*JsonClient) {
 		disconnectChan: make(chan *cheshireConn),
 		exitChan:       make(chan int),
 		PingUri:        "/ping",
+		PoolSize:		5,
+		conn:		make([]*cheshireConn, 0),
 	}
 	return client
 }
 
 // returns the total # of requests that are currently inflight (i.e. txn in progress)
-func (this *JsonClient) CurrentInFlight() int {
-	return len(this.conn.requests)
-}
+// func (this *JsonClient) CurrentInFlight() int {
+
+
+// 	return len(this.conn.requests)
+// }
 
 // Starts the json event loop and initializes one or
 // more connections
 // if a connection already exists it will be closed
 func (this *JsonClient) Connect() error {
-	conn, err := this.createConn()
-	if err != nil {
-		return err
+	this.connectLock.Lock()
+	defer this.connectLock.Unlock()
+
+	if len(this.conn) > 0 {
+		//close all the connections.
+		this.Close()
 	}
-	this.conn = conn
+
+	this.isClosed = false
+
+	this.conn = make([]*cheshireConn, this.PoolSize)
+	for i:=0; i < this.PoolSize;i++ {
+		conn, err := this.createConn()
+		if err != nil {
+			return err
+		}
+		conn.poolIndex = i
+		this.conn[i] = conn
+	}
+
+	this.maxInFlightPer = int(this.MaxInflight / this.PoolSize)
 	go this.eventLoop()
 	return nil
 }
@@ -180,14 +209,14 @@ func (this *JsonClient) Close() {
 	log.Println("Send exit message")
 }
 
+//Creates a new cheshire connection and returns it
 func (this *JsonClient) createConn() (*cheshireConn, error) {
-	defer this.connectLock.Unlock()
-	this.connectLock.Lock()
 	c, err := newCheshireConn(fmt.Sprintf("%s:%d", this.Host, this.Port), this.disconnectChan, 20*time.Second)
 	if err != nil {
 		return nil, err
 	}
-	c.maxInFlight = this.MaxInflight
+
+	c.maxInFlight = this.maxInFlightPer
 	go c.eventLoop()
 	return c, nil
 }
@@ -195,21 +224,41 @@ func (this *JsonClient) createConn() (*cheshireConn, error) {
 //returns the connection.  
 // use this rather then access directly from the struct, will
 // make it easier to pool connections if we need.
+// This will attempt to return the next operating connection
 func (this *JsonClient) connection() (*cheshireConn, error) {
-	defer this.connectLock.RUnlock()
-	this.connectLock.RLock()
+	var err error
 
-	if !this.conn.connected {
-		return this.conn, fmt.Errorf("Not connected")
+	for i:=0; i < this.PoolSize; i++ {
+		conn, err := this.nextConnection()
+		if err != nil {
+			continue
+		}
+		if conn.inflight() >= this.maxInFlightPer {
+			continue
+		}
+		return conn, nil
 	}
-	return this.conn, nil
+	if err == nil {
+		err = fmt.Errorf("Unable to get connection, likely all are busy")
+	}
+	return nil, err
+	
+}
+
+//returns the next connection
+func (this *JsonClient) nextConnection() (*cheshireConn, error) {
+	index := int(atomic.AddUint64(&this.count, uint64(1)) % uint64(this.PoolSize))
+	this.connectLock.RLock()
+	conn := this.conn[index]
+	this.connectLock.RUnlock()
+	if !conn.connected {
+		return conn, fmt.Errorf("Not connected")
+	}
+	return conn, nil
 }
 
 //Attempt to close this connection and make a new connection.
 func (this *JsonClient) reconnect(oldconn *cheshireConn) (*cheshireConn, error) {
-	if this.conn != oldconn {
-		log.Println("Error oldconn is not contained in client for reconnect (%s)", oldconn)
-	}
 	if oldconn.connectedAt.After(time.Now().Add(5 * time.Second)) {
 		//only allow one reconnect attempt per 5 second interval
 		//returning the old connection, because this was likely a concurrent reconnect 
@@ -228,7 +277,7 @@ func (this *JsonClient) reconnect(oldconn *cheshireConn) (*cheshireConn, error) 
 		return oldconn, err
 	}
 	this.connectLock.Lock()
-	this.conn = con
+	this.conn[oldconn.poolIndex] = con
 	this.connectLock.Unlock()
 
 	log.Println("DONE RECONNECT %s", con)
@@ -244,13 +293,15 @@ func (this *JsonClient) eventLoop() {
 		case <-this.exitChan:
 			log.Println("Exiting Client")
 			//close all connections
-			this.conn.Close()
+			for _,conn := range(this.conn) {
+				conn.Close()
+			}
 			this.isClosed = true
 			break
 		case <-c:
 			//ping all the connections.
 			log.Println("PING!!!!!!!!!!!!!!")
-			_, conn, err := this.doApiCallSync(NewRequest(this.PingUri, "GET"), 10*time.Second)
+			_, conn, err := this.doApiCallSync(cheshire.NewRequest(this.PingUri, "GET"), 10*time.Second)
 			if err != nil {
 				log.Println("COULDNT PING")
 				// uhh should we reconnect?
@@ -272,23 +323,23 @@ func (this *JsonClient) eventLoop() {
 
 // Does a synchronous api call.  times out after the requested timeout.
 // This will automatically set the txn accept to single
-func (this *JsonClient) ApiCallSync(req *Request, timeout time.Duration) (*Response, error) {
+func (this *JsonClient) ApiCallSync(req *cheshire.Request, timeout time.Duration) (*cheshire.Response, error) {
 	req.SetTxnAccept("single")
 	response, _, err := this.doApiCallSync(req, timeout)
 	return response, err
 }
 
 // Does an api call.
-func (this *JsonClient) ApiCall(req *Request, responseChan chan *Response, errorChan chan error) {
+func (this *JsonClient) ApiCall(req *cheshire.Request, responseChan chan *cheshire.Response, errorChan chan error) {
 	this.doApiCall(req, responseChan, errorChan)
 }
 
-func (this *JsonClient) doApiCallSync(req *Request, timeout time.Duration) (*Response, *cheshireConn, error) {
+func (this *JsonClient) doApiCallSync(req *cheshire.Request, timeout time.Duration) (*cheshire.Response, *cheshireConn, error) {
 
 	log.Println("Do api sync")
 	defer log.Println("DONE api sync")
 
-	responseChan := make(chan *Response)
+	responseChan := make(chan *cheshire.Response)
 	errorChan := make(chan error, 5)
 	conn, _ := this.doApiCall(req, responseChan, errorChan)
 	select {
@@ -304,7 +355,7 @@ func (this *JsonClient) doApiCallSync(req *Request, timeout time.Duration) (*Res
 }
 
 //does the actual call, returning the connection and the internal request
-func (this *JsonClient) doApiCall(req *Request, responseChan chan *Response, errorChan chan error) (*cheshireConn, *cheshireRequest) {
+func (this *JsonClient) doApiCall(req *cheshire.Request, responseChan chan *cheshire.Response, errorChan chan error) (*cheshireConn, *cheshireRequest) {
 	if req.TxnId() == "" {
 		req.SetTxnId(NewTxnId())
 	}
@@ -328,7 +379,7 @@ type cheshireConn struct {
 	connected      bool
 	readTimeout    time.Duration
 	writeTimeout   time.Duration
-	incomingChan   chan *Response
+	incomingChan   chan *cheshire.Response
 	outgoingChan   chan *cheshireRequest
 	exitChan       chan int
 	disconnectChan chan *cheshireConn
@@ -336,12 +387,14 @@ type cheshireConn struct {
 	requests    map[string]*cheshireRequest
 	connectedAt time.Time
 	maxInFlight int
+	//the index in the owning pool
+	poolIndex int
 }
 
 //wrap a request so we dont lose track of the result channels
 type cheshireRequest struct {
-	req        *Request
-	resultChan chan *Response
+	req        *cheshire.Request
+	resultChan chan *cheshire.Response
 	errorChan  chan error
 }
 
@@ -367,7 +420,7 @@ func newCheshireConn(addr string, disconnect chan *cheshireConn, writeTimeout ti
 		addr:           addr,
 		writeTimeout:   writeTimeout,
 		exitChan:       make(chan int),
-		incomingChan:   make(chan *Response, 25),
+		incomingChan:   make(chan *cheshire.Response, 25),
 		outgoingChan:   make(chan *cheshireRequest, 25),
 		disconnectChan: disconnect,
 		requests:       make(map[string]*cheshireRequest),
@@ -376,11 +429,16 @@ func newCheshireConn(addr string, disconnect chan *cheshireConn, writeTimeout ti
 	return nc, nil
 }
 
+//returns the current # of requests in flight
+func (this *cheshireConn) inflight() int {
+	return len(this.requests)
+}
+
 // Sends a new request.
 // this will check the max inflight, and will block for max 20 seconds waiting for the # inflilght to go down.
 // if inflight does not go down it will close the connection and return error.
 // errors are returned, not sent to the errorchan
-func (this *cheshireConn) sendRequest(request *Request, resultChan chan *Response, errorChan chan error) (*cheshireRequest, error) {
+func (this *cheshireConn) sendRequest(request *cheshire.Request, resultChan chan *cheshire.Response, errorChan chan error) (*cheshireRequest, error) {
 
 	sleeps := 0
 	for len(this.requests) > this.maxInFlight {
@@ -422,7 +480,7 @@ func (this *cheshireConn) listener() {
 	log.Printf("Starting Cheshire Connection %s", this.addr)
 	defer func() { this.exitChan <- 1 }()
 	for {
-		res := &Response{*dynmap.NewDynMap()}
+		res := &cheshire.Response{*dynmap.New()}
 		err := decoder.Decode(res)
 		if err == io.EOF {
 			log.Print(err)

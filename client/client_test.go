@@ -1,14 +1,15 @@
-package cheshire
+package client
 
 import (
 	"log"
 	"testing"
+		"github.com/trendrr/cheshire-golang/cheshire"
 	"time"
 )
 
 func TestHttpClient(t *testing.T) {
 	client := NewHttpClient("localhost:8010")
-	res, err := client.ApiCallSync(NewRequest("/ping", "GET"), 10*time.Second)
+	res, err := client.ApiCallSync(cheshire.NewRequest("/ping", "GET"), 10*time.Second)
 	log.Println(res)
 	if err != nil {
 		t.Errorf("error %s", err)
@@ -16,14 +17,10 @@ func TestHttpClient(t *testing.T) {
 }
 
 func TestJsonClient(t *testing.T) {
-	client, err := NewJsonClient("localhost", 8009)
-	if err != nil {
-		log.Println(err)
-		return
-	}
+	client := NewJsonClient("localhost", 8009)
 	defer client.Close()
 
-	res, err := client.ApiCallSync(NewRequest("/ping", "GET"), 10*time.Second)
+	res, err := client.ApiCallSync(cheshire.NewRequest("/ping", "GET"), 10*time.Second)
 	log.Println(res)
 	if err != nil {
 		t.Errorf("error %s", err)
