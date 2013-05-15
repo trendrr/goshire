@@ -307,6 +307,44 @@ func (this *DynMap) GetIntSliceSplit(key, delim string) ([]int, bool) {
 	return ret, ok
 }
 
+//Returns a slice of strings
+func (this *DynMap) GetStringSlice(key string) ([]string, bool) {
+	lst, ok := this.Get(key)
+	if !ok {
+		return nil, false
+	}
+	switch v := lst.(type) {
+	case []string:
+		return v, true
+	case []interface{}:
+		retlist := make([]string, 0)
+		for _, tmp := range v {
+			in, err := ToString(tmp)
+			if err != nil {
+				return nil, false
+			}
+			retlist = append(retlist, in)
+		}
+		return retlist, true
+	}
+	return nil, false
+}
+
+//gets a slice of strings.  if the value is a string it will
+//split by the requested delimiter
+func (this *DynMap) GetStringSliceSplit(key, delim string) ([]string, bool) {
+	lst, ok := this.Get(key)
+	if !ok {
+		return nil, false
+	}
+	switch v := lst.(type) {
+	case string:
+		return strings.Split(v, delim), true
+	}
+	ret, ok := this.GetStringSlice(key)
+	return ret, ok
+}
+
 // Adds the item to a slice
 func (this *DynMap) AddToSlice(key string, mp interface{}) error {
 	this.PutIfAbsent(key, make([]interface{}, 0))
