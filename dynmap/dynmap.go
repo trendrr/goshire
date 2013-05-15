@@ -20,6 +20,12 @@ type DynMaper interface {
 	ToDynMap() *DynMap
 }
 
+// Creates a new dynmap
+func New() *DynMap {
+	return &DynMap{make(map[string]interface{})}	
+}
+
+// Deprecated.  use New() instead
 func NewDynMap() *DynMap {
 	return &DynMap{make(map[string]interface{})}
 }
@@ -184,7 +190,7 @@ func (this *DynMap) GetTime(key string) (time.Time, bool) {
 	return t, true
 }
 
-func (this *DynMap) GetTimeOrDefault(key string, def time.Time) time.Time {
+func (this *DynMap) MustTime(key string, def time.Time) time.Time {
 	tmp, ok := this.GetTime(key)
 	if !ok {
 		return def
@@ -298,6 +304,41 @@ func (this *DynMap) GetIntSliceSplit(key, delim string) ([]int, bool) {
 		return retlist, true
 	}
 	ret, ok := this.GetIntSlice(key)
+	return ret, ok
+}
+
+//Returns a slice of strings
+func (this *DynMap) GetStringSlice(key string) ([]string, bool) {
+	lst, ok := this.Get(key)
+	if !ok {
+		return nil, false
+	}
+	switch v := lst.(type) {
+	case []string:
+		return v, true
+	case []interface{}:
+		retlist := make([]string, 0)
+		for _, tmp := range v {
+			in := ToString(tmp)
+			retlist = append(retlist, in)
+		}
+		return retlist, true
+	}
+	return nil, false
+}
+
+//gets a slice of strings.  if the value is a string it will
+//split by the requested delimiter
+func (this *DynMap) GetStringSliceSplit(key, delim string) ([]string, bool) {
+	lst, ok := this.Get(key)
+	if !ok {
+		return nil, false
+	}
+	switch v := lst.(type) {
+	case string:
+		return strings.Split(v, delim), true
+	}
+	ret, ok := this.GetStringSlice(key)
 	return ret, ok
 }
 

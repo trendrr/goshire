@@ -81,13 +81,7 @@ func (this *WebsocketController) HandleWCConnection(ws *websocket.Conn) {
 			log.Print(err)
 			break
 		}
-		log.Print(req)
-		log.Print(req.Uri())
 		controller := this.serverConfig.Router.Match(req.Method(), req.Uri())
-
-		log.Print("GOT CONTROLLER ")
-		log.Print(controller)
-
 		go HandleRequest(&req, writer, controller, this.serverConfig)
 	}
 	log.Print("DISCONNECT!")
