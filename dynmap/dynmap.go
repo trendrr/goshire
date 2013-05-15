@@ -319,10 +319,7 @@ func (this *DynMap) GetStringSlice(key string) ([]string, bool) {
 	case []interface{}:
 		retlist := make([]string, 0)
 		for _, tmp := range v {
-			in, err := ToString(tmp)
-			if err != nil {
-				return nil, false
-			}
+			in := ToString(tmp)
 			retlist = append(retlist, in)
 		}
 		return retlist, true
