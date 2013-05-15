@@ -18,8 +18,8 @@ func TestHttpClient(t *testing.T) {
 
 func TestJsonClient(t *testing.T) {
 	client := NewJsonClient("localhost", 8009)
+	client.Connect()
 	defer client.Close()
-
 	res, err := client.ApiCallSync(cheshire.NewRequest("/ping", "GET"), 10*time.Second)
 	log.Println(res)
 	if err != nil {

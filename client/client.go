@@ -162,6 +162,7 @@ func NewJsonClient(host string, port int) (*JsonClient) {
 		exitChan:       make(chan int),
 		PingUri:        "/ping",
 		PoolSize:		5,
+		MaxInflight: 200,
 		conn:		make([]*cheshireConn, 0),
 	}
 	return client
