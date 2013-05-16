@@ -42,18 +42,18 @@ type HttpClient struct {
 
 // does an asynchrounous api call to the requested address.
 func HttpApiCall(address string, req *cheshire.Request, responseChan chan *cheshire.Response, errorChan chan error) {
-	cl := NewHttpClient(address)
+	cl := NewHttp(address)
 	cl.ApiCall(req, responseChan, errorChan)
 }
 
 // does a synchronous api call to the requested address.
 func HttpApiCallSync(address string, req *cheshire.Request, timeout time.Duration) (*cheshire.Response, error) {
-	cl := NewHttpClient(address)
+	cl := NewHttp(address)
 	res, err := cl.ApiCallSync(req, timeout)
 	return res, err
 }
 
-func NewHttpClient(address string) *HttpClient {
+func NewHttp(address string) *HttpClient {
 	return &HttpClient{
 		Address: address,
 	}
@@ -153,7 +153,7 @@ type JsonClient struct {
 
 //Creates a new Json client 
 // Remember to call client.Connect
-func NewJsonClient(host string, port int) (*JsonClient) {
+func NewJson(host string, port int) (*JsonClient) {
 	client := &JsonClient{
 		Host:           host,
 		Port:           port,
@@ -189,6 +189,15 @@ func (this *JsonClient) Connect() error {
 
 	this.isClosed = false
 
+	this.maxInFlightPer = int(this.MaxInflight / this.PoolSize)
+	if this.maxInFlightPer < 10 {
+		log.Println("Max Inflight is less then 10 per connection, suggest raising it (%d)", this.maxInFlightPer)
+	}
+	if this.maxInFlightPer < 2 {
+		log.Println("Setting max inflight to 2")
+		this.maxInFlightPer = 2
+	}
+
 	this.conn = make([]*cheshireConn, this.PoolSize)
 	for i:=0; i < this.PoolSize;i++ {
 		conn, err := this.createConn()
@@ -199,7 +208,6 @@ func (this *JsonClient) Connect() error {
 		this.conn[i] = conn
 	}
 
-	this.maxInFlightPer = int(this.MaxInflight / this.PoolSize)
 	go this.eventLoop()
 	return nil
 }
@@ -216,7 +224,7 @@ func (this *JsonClient) createConn() (*cheshireConn, error) {
 	if err != nil {
 		return nil, err
 	}
-
+	log.Println("Max Inflight %d, Per %d, Poolsize %d", this.MaxInflight, this.maxInFlightPer, this.PoolSize)
 	c.maxInFlight = this.maxInFlightPer
 	go c.eventLoop()
 	return c, nil
@@ -301,14 +309,16 @@ func (this *JsonClient) eventLoop() {
 			break
 		case <-c:
 			//ping all the connections.
-			log.Println("PING!!!!!!!!!!!!!!")
-			_, conn, err := this.doApiCallSync(cheshire.NewRequest(this.PingUri, "GET"), 10*time.Second)
-			if err != nil {
-				log.Println("COULDNT PING")
-				// uhh should we reconnect?
-				this.reconnect(conn)
-				log.Println("DONE PINGIGN")
+			
+			for _, conn := range(this.conn) {
+				
+				_, err := this.doApiCallSync(conn, cheshire.NewRequest(this.PingUri, "GET"), 10*time.Second)
+				if err != nil {
+					log.Printf("COULDNT PING (%s) Attempting to reconnect", err)
+					this.reconnect(conn)
+				}
 			}
+
 		case conn := <-this.disconnectChan:
 			log.Printf("DISCONNECTED %s:%p, attempting reconnect", this.Host, this.Port)
 			//reconnect
@@ -325,55 +335,64 @@ func (this *JsonClient) eventLoop() {
 // Does a synchronous api call.  times out after the requested timeout.
 // This will automatically set the txn accept to single
 func (this *JsonClient) ApiCallSync(req *cheshire.Request, timeout time.Duration) (*cheshire.Response, error) {
+	conn, err := this.connection()
+	if err != nil {
+		return nil, err
+	}
+
 	req.SetTxnAccept("single")
-	response, _, err := this.doApiCallSync(req, timeout)
+	response, err := this.doApiCallSync(conn, req, timeout)
 	return response, err
 }
 
 // Does an api call.
-func (this *JsonClient) ApiCall(req *cheshire.Request, responseChan chan *cheshire.Response, errorChan chan error) {
-	this.doApiCall(req, responseChan, errorChan)
+// Transport errors and others will arrive on the channel.  
+// will return an error immediately if no connection is available.
+
+func (this *JsonClient) ApiCall(req *cheshire.Request, responseChan chan *cheshire.Response, errorChan chan error) error {
+	conn, err := this.connection()
+	if err != nil {
+		return err
+	}
+	_, err = this.doApiCall(conn, req, responseChan, errorChan)
+	return err
 }
 
-func (this *JsonClient) doApiCallSync(req *cheshire.Request, timeout time.Duration) (*cheshire.Response, *cheshireConn, error) {
-
-	log.Println("Do api sync")
-	defer log.Println("DONE api sync")
-
+func (this *JsonClient) doApiCallSync(conn *cheshireConn, req *cheshire.Request, timeout time.Duration) (*cheshire.Response, error) {
 	responseChan := make(chan *cheshire.Response)
 	errorChan := make(chan error, 5)
-	conn, _ := this.doApiCall(req, responseChan, errorChan)
+	_, err := this.doApiCall(conn, req, responseChan, errorChan)
+	if err != nil {
+		return nil, err
+	}
 	select {
 	case response := <-responseChan:
-		return response, conn, nil
+		return response, nil
 	case err := <-errorChan:
-		log.Println("GOT ERROR!")
-		return nil, conn, err
+		log.Printf("GOT ERROR! %s", err)
+		return nil, err
 	case <-time.After(timeout):
-		return nil, conn, fmt.Errorf("Request timeout")
+		return nil, fmt.Errorf("Request timeout")
 	}
-	return nil, conn, fmt.Errorf("Impossible error happened, alert NASA")
+	return nil, fmt.Errorf("Impossible error happened, alert NASA")
 }
 
+
 //does the actual call, returning the connection and the internal request
-func (this *JsonClient) doApiCall(req *cheshire.Request, responseChan chan *cheshire.Response, errorChan chan error) (*cheshireConn, *cheshireRequest) {
+func (this *JsonClient) doApiCall(conn *cheshireConn, req *cheshire.Request, responseChan chan *cheshire.Response, errorChan chan error) (*cheshireRequest, error) {
 	if req.TxnId() == "" {
 		req.SetTxnId(NewTxnId())
 	}
-	conn, err := this.connection()
-	if err != nil {
-		errorChan <- err
-		return conn, nil
+	if conn == nil {
+		return nil, fmt.Errorf("Cannot do api call, conn is nil")
 	}
 	r, err := conn.sendRequest(req, responseChan, errorChan)
-	if err != nil {
-		errorChan <- err
-		return conn, r
-	}
-	return conn, r
+	return r, err
 }
 
-// Connection to a cheshire server. 
+// A single connection to a cheshire server. 
+// The connection is considered fail fast
+// should be disconnected and reaped
 type cheshireConn struct {
 	net.Conn
 	addr           string
@@ -394,6 +413,7 @@ type cheshireConn struct {
 
 //wrap a request so we dont lose track of the result channels
 type cheshireRequest struct {
+	bytes		[]byte
 	req        *cheshire.Request
 	resultChan chan *cheshire.Response
 	errorChan  chan error
@@ -443,6 +463,7 @@ func (this *cheshireConn) sendRequest(request *cheshire.Request, resultChan chan
 
 	sleeps := 0
 	for len(this.requests) > this.maxInFlight {
+		log.Printf("Max inflight (%d), sleeping one second", this.maxInFlight)
 		if sleeps > 20 {
 			//should close this connection..
 			this.Close()
@@ -455,8 +476,16 @@ func (this *cheshireConn) sendRequest(request *cheshire.Request, resultChan chan
 	if !this.connected {
 		return nil, fmt.Errorf("Not connected")
 	}
+
+	json, err := json.Marshal(request)
+	if err != nil {
+		return nil, err
+	}
+
+
 	req := &cheshireRequest{
 		req:        request,
+		bytes:		json,
 		resultChan: resultChan,
 		errorChan:  errorChan,
 	}
@@ -522,28 +551,6 @@ func (this *cheshireConn) eventLoop() {
 	defer this.cleanup()
 	for this.connected {
 		select {
-		case request := <-this.outgoingChan:
-			//add to the request map
-
-			this.requests[request.req.TxnId()] = request
-
-			//send the request
-			this.SetWriteDeadline(time.Now().Add(this.writeTimeout))
-
-			// log.Printf("Sending: %s", request.req.TxnId())
-			json, err := json.Marshal(request.req)
-			if err != nil {
-				//TODO: uhh, do something..
-				log.Print(err)
-				continue
-			}
-			_, err = writer.Write(json)
-			writer.Flush()
-			if err != nil {
-				//TODO: uhh, do something..
-				log.Print(err)
-				continue
-			}
 		case response := <-this.incomingChan:
 			req, ok := this.requests[response.TxnId()]
 			if !ok {
@@ -558,6 +565,22 @@ func (this *cheshireConn) eventLoop() {
 			if response.TxnStatus() == "completed" {
 				delete(this.requests, response.TxnId())
 			}
+		case request := <-this.outgoingChan:
+			//add to the request map
+
+			this.requests[request.req.TxnId()] = request
+
+			//send the request
+			this.SetWriteDeadline(time.Now().Add(this.writeTimeout))
+			_, err := writer.Write(request.bytes)
+			if err != nil {
+				//TODO: uhh, do something..
+				log.Print(err)
+				continue
+			}
+			writer.Flush()
+
+
 		case <-this.exitChan:
 			this.connected = false
 		}
