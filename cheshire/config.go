@@ -7,6 +7,29 @@ import (
 	"log"
 )
 
+type ServerConfig struct {
+	*dynmap.DynMap
+	Router  RouteMatcher
+	Filters []ControllerFilter
+}
+
+// Creates a new server config with a default routematcher
+func NewServerConfig() *ServerConfig {
+	return &ServerConfig{
+		dynmap.NewDynMap(),
+		NewDefaultRouter(),
+		make([]ControllerFilter, 0),
+	}
+}
+
+// Registers a controller with the RouteMatcher.  
+// shortcut to conf.Router.Register(controller)
+func (this *ServerConfig) Register(methods []string, controller Controller) {
+	log.Println("Registering: ", methods, " ", controller.Config().Route, " ", controller)
+	this.Router.Register(methods, controller)
+}
+
+
 // Parses a server config from a YAML file
 func NewServerConfigFile(path string) *ServerConfig {
 	conf, err := yaml.ReadFile(path)

@@ -7,6 +7,15 @@ import (
 	"sync"
 )
 
+// The Cheshire Router, translates between a uri + method to a controller
+type RouteMatcher interface {
+	// A controller matches the given method, path
+	Match(string, string) Controller
+	// Registers a controller for the specified methods 
+	Register([]string, Controller)
+}
+
+
 // This is a default implementation of a cheshire Router.  
 // it is based on the HTTP request multiplexer from golang sources:
 // http://golang.org/src/pkg/net/http/server.go?s=25470:25535#L841

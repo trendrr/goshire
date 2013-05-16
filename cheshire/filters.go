@@ -5,6 +5,28 @@ import (
 	"net/http"
 )
 
+
+
+// Hooks to hook into before and after the controller execution.
+type ControllerFilter interface {
+	//This is called before the Controller is called. 
+	//returning false will stop the execution
+	Before(*Txn) bool
+}
+
+// Additional hooks if you need more granularity into the lifecycle
+type FilterAdvanced interface {
+	ControllerFilter
+
+	//Called immediately before the response is written.
+	BeforeWrite(*Response, *Txn)
+
+	//This is called after the controller is called.
+	//The response has already been sent 
+	AfterWrite(*Response, *Txn)
+}
+
+
 type Session struct {
 	//The cache provider
 	cache Cache
