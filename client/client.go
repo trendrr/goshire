@@ -146,6 +146,13 @@ type JsonClient struct {
 	// The connection pool size
 	PoolSize int
 
+	// Number of times we should retry to send a request if there is a connection problem
+	// default is 1
+	Retries int 
+
+	//The amount of time to pause between retries
+	// default is 500 millis
+	RetryPause time.Duration
 
 	count uint64
 	maxInFlightPer int
@@ -164,6 +171,8 @@ func NewJson(host string, port int) (*JsonClient) {
 		PoolSize:		5,
 		MaxInflight: 200,
 		conn:		make([]*cheshireConn, 0),
+		Retries: 1,
+		RetryPause: time.Duration(500)*time.Millisecond,
 	}
 	return client
 }
@@ -336,6 +345,11 @@ func (this *JsonClient) eventLoop() {
 // This will automatically set the txn accept to single
 func (this *JsonClient) ApiCallSync(req *cheshire.Request, timeout time.Duration) (*cheshire.Response, error) {
 	conn, err := this.connection()
+	//retry if necessary
+	for i := 0; i < this.Retries && err != nil; i++ {
+		time.Sleep(this.RetryPause)
+		conn, err = this.connection()
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -351,6 +365,12 @@ func (this *JsonClient) ApiCallSync(req *cheshire.Request, timeout time.Duration
 
 func (this *JsonClient) ApiCall(req *cheshire.Request, responseChan chan *cheshire.Response, errorChan chan error) error {
 	conn, err := this.connection()
+	//retry if necessary
+	for i := 0; i < this.Retries && err != nil; i++ {
+		time.Sleep(this.RetryPause)
+		conn, err = this.connection()
+	}
+
 	if err != nil {
 		return err
 	}
@@ -380,11 +400,11 @@ func (this *JsonClient) doApiCallSync(conn *cheshireConn, req *cheshire.Request,
 
 //does the actual call, returning the connection and the internal request
 func (this *JsonClient) doApiCall(conn *cheshireConn, req *cheshire.Request, responseChan chan *cheshire.Response, errorChan chan error) (*cheshireRequest, error) {
-	if req.TxnId() == "" {
-		req.SetTxnId(NewTxnId())
-	}
 	if conn == nil {
 		return nil, fmt.Errorf("Cannot do api call, conn is nil")
+	}
+	if req.TxnId() == "" {
+		req.SetTxnId(NewTxnId())
 	}
 	r, err := conn.sendRequest(req, responseChan, errorChan)
 	return r, err
