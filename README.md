@@ -1,9 +1,9 @@
-cheshire-golang
+Goshire
 ===============
 
 ##Overview
 
-Cheshire is a GO web framework that simplifies creating fast & scalable websites and apis. 
+Goshire is a GO web framework that simplifies creating fast & scalable websites and apis. 
 It's inspired by the cheshire java framework https://github.com/dustismo/cheshire. 
 
 ###Cheshire includes:
@@ -25,7 +25,7 @@ It's inspired by the cheshire java framework https://github.com/dustismo/cheshir
 go get github.com/kylelemons/go-gypsy/yaml
 go get github.com/hoisie/mustache
 go get code.google.com/p/go.net/websocket
-go get github.com/trendrr/cheshire-golang
+go get github.com/trendrr/goshire
 ```
 
 ##Quickstart
@@ -34,7 +34,7 @@ For a quick start boilerplate project, check out Wildling. http://github.com/mde
 
 ##Docs
 
-Here are the go docs. http://godoc.org/github.com/trendrr/cheshire-golang/cheshire
+Here are the go docs. http://godoc.org/github.com/trendrr/goshire/cheshire
 
 ##Credits
 
