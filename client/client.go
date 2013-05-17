@@ -30,7 +30,7 @@ type Client interface {
 	// This will automatically set the txn accept to single
 	ApiCallSync(req *cheshire.Request, timeout time.Duration) (*cheshire.Response, error)
 	// Does an api call.
-	ApiCall(req *cheshire.Request, responseChan chan *cheshire.Response, errorChan chan error)
+	ApiCall(req *cheshire.Request, responseChan chan *cheshire.Response, errorChan chan error) error
 
 	//Closes this client
 	Close()
@@ -63,7 +63,8 @@ func (this *HttpClient) Close() {
 	//do nothing..
 }
 
-func (this *HttpClient) ApiCall(req *cheshire.Request, responseChan chan *cheshire.Response, errorChan chan error) {
+// Make an async api call
+func (this *HttpClient) ApiCall(req *cheshire.Request, responseChan chan *cheshire.Response, errorChan chan error) error {
 	go func() {
 		//TODO we could do something that allows streaming http
 		res, err := this.ApiCallSync(req, 4*60*time.Second)
@@ -73,6 +74,7 @@ func (this *HttpClient) ApiCall(req *cheshire.Request, responseChan chan *cheshi
 			responseChan <- res
 		}
 	}()
+	return nil
 }
 
 func (this *HttpClient) ApiCallSync(req *cheshire.Request, timeout time.Duration) (*cheshire.Response, error) {
