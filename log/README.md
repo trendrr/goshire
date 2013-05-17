@@ -11,7 +11,7 @@ This logger allows you to easily subscribe to log events.
 To use simply change the log import path from to
 
 ```
-    import ("github.com/trendrr/cheshire-golang/log")
+    import ("github.com/trendrr/goshire/log")
 
     //then use as you would the regular log
     log.Println("Heres a log message")

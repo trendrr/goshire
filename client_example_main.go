@@ -2,9 +2,9 @@ package main
 
 import (
     "log"
-        "github.com/trendrr/cheshire-golang/cheshire"
+        "github.com/trendrr/goshire/cheshire"
     "time"
-    c "github.com/trendrr/cheshire-golang/client"
+    c "github.com/trendrr/goshire/client"
     // "os"
     // "runtime/pprof"
     // _ "net/http/pprof"

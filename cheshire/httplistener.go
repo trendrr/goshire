@@ -3,7 +3,7 @@ package cheshire
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/trendrr/cheshire-golang/dynmap"
+	"github.com/trendrr/goshire/dynmap"
 	"log"
 	"net/http"
 	"net/url"
