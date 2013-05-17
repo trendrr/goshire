@@ -1,7 +1,7 @@
 package cheshire
 
 import (
-    "github.com/trendrr/cheshire-golang/dynmap"
+    "github.com/trendrr/goshire/dynmap"
 )
 
 type Writer interface {

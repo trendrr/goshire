@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-//go test -v github.com/trendrr/cheshire-golang/cheshire
+//go test -v github.com/trendrr/goshire/cheshire
 func TestJsonMarshal(t *testing.T) {
 	mp := NewDynMap()
 	mp.PutWithDot("this.that.test", 80)

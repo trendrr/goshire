@@ -3,7 +3,7 @@ package cheshire
 import (
 	"fmt"
 	"github.com/hoisie/mustache"
-	"github.com/trendrr/cheshire-golang/dynmap"
+	"github.com/trendrr/goshire/dynmap"
 	"log"
 	"net/http"
 )

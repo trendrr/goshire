@@ -3,7 +3,7 @@ package cheshire
 import (
 	"fmt"
 	"github.com/kylelemons/go-gypsy/yaml"
-	"github.com/trendrr/cheshire-golang/dynmap"
+	"github.com/trendrr/goshire/dynmap"
 	"log"
 )
 
