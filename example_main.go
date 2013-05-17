@@ -2,8 +2,8 @@ package main
 
 import (
     "log"
-    "github.com/trendrr/cheshire-golang/cheshire"
-    "github.com/trendrr/cheshire-golang/cheshire/impl/gocache"
+    "github.com/trendrr/goshire/cheshire"
+    "github.com/trendrr/goshire/cheshire/impl/gocache"
        
 )
 

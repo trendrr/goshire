@@ -3,7 +3,7 @@ package client
 import (
 	"log"
 	"testing"
-	"github.com/trendrr/cheshire-golang/cheshire"
+	"github.com/trendrr/goshire/cheshire"
 	"time"
 )
 
@@ -27,7 +27,7 @@ func TestJsonClient(t *testing.T) {
 	}
 }
 
-//go test -v github.com/trendrr/cheshire-golang/cheshire
+//go test -v github.com/trendrr/goshire/cheshire
 func TestClient(t *testing.T) {
 	//NOT actually a test ;)
 
