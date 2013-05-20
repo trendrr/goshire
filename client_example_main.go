@@ -9,11 +9,12 @@ import (
     // "runtime/pprof"
     // _ "net/http/pprof"
     // "net/http"
+    "runtime"
 )
 
 
 func main() {
-
+    runtime.GOMAXPROCS(runtime.NumCPU())
 //assumes a running server on port 8009
     log.Println("HERE")
     // client := NewHttp("localhost:8010")
@@ -33,19 +34,19 @@ func main() {
     log.Println(res)
 
 
-    //start the http server for profiling
+    // start the http server for profiling
     // go func() {
     //     log.Println(http.ListenAndServe("localhost:6060", nil))
     // }()
 
-    resChan := make(chan *cheshire.Response, 2)
-    errorChan := make(chan error)
+    resChan := make(chan *cheshire.Response, 20)
+    errorChan := make(chan error, 200)
     total := 100000
     start := time.Now().Unix()
     go func() {
 
         for i :=0; i < total; i++ {
-            if i % 500 == 0 {
+            if i % 1000 == 0 {
                 log.Printf("Sending %d", i)    
             }
             err := client.ApiCall(cheshire.NewRequest("/ping", "GET"), resChan, errorChan)        
@@ -61,8 +62,8 @@ func main() {
         select {
         case <-resChan:
             count++
-            if count % 500 == 0 {
-                log.Printf("Pinged 500 more, total %d, total time: %d", count, (time.Now().Unix() - start))
+            if count % 1000 == 0 {
+                log.Printf("Recieved 1000 more, total %d, total time: %d", count, (time.Now().Unix() - start))
             }
 
         case <-errorChan:
