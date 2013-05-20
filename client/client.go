@@ -30,7 +30,7 @@ type Client interface {
 	// This will automatically set the txn accept to single
 	ApiCallSync(req *cheshire.Request, timeout time.Duration) (*cheshire.Response, error)
 	// Does an api call.
-	ApiCall(req *cheshire.Request, responseChan chan *cheshire.Response, errorChan chan error)
+	ApiCall(req *cheshire.Request, responseChan chan *cheshire.Response, errorChan chan error) error
 
 	//Closes this client
 	Close()
@@ -63,7 +63,8 @@ func (this *HttpClient) Close() {
 	//do nothing..
 }
 
-func (this *HttpClient) ApiCall(req *cheshire.Request, responseChan chan *cheshire.Response, errorChan chan error) {
+// Make an async api call
+func (this *HttpClient) ApiCall(req *cheshire.Request, responseChan chan *cheshire.Response, errorChan chan error) error {
 	go func() {
 		//TODO we could do something that allows streaming http
 		res, err := this.ApiCallSync(req, 4*60*time.Second)
@@ -73,6 +74,7 @@ func (this *HttpClient) ApiCall(req *cheshire.Request, responseChan chan *cheshi
 			responseChan <- res
 		}
 	}()
+	return nil
 }
 
 func (this *HttpClient) ApiCallSync(req *cheshire.Request, timeout time.Duration) (*cheshire.Response, error) {
@@ -141,7 +143,7 @@ type JsonClient struct {
 	//When max inflight is reached, the client will start
 	//blocking and waiting for room.
 	//connection will eventually close if it waits too long.
-	MaxInflight int
+	MaxInFlight int
 
 	// The connection pool size
 	PoolSize int
@@ -169,7 +171,7 @@ func NewJson(host string, port int) (*JsonClient) {
 		exitChan:       make(chan int),
 		PingUri:        "/ping",
 		PoolSize:		5,
-		MaxInflight: 200,
+		MaxInFlight: 200,
 		conn:		make([]*cheshireConn, 0),
 		Retries: 1,
 		RetryPause: time.Duration(500)*time.Millisecond,
@@ -198,7 +200,7 @@ func (this *JsonClient) Connect() error {
 
 	this.isClosed = false
 
-	this.maxInFlightPer = int(this.MaxInflight / this.PoolSize)
+	this.maxInFlightPer = int(this.MaxInFlight / this.PoolSize)
 	if this.maxInFlightPer < 10 {
 		log.Println("Max Inflight is less then 10 per connection, suggest raising it (%d)", this.maxInFlightPer)
 	}
@@ -233,7 +235,7 @@ func (this *JsonClient) createConn() (*cheshireConn, error) {
 	if err != nil {
 		return nil, err
 	}
-	log.Println("Max Inflight %d, Per %d, Poolsize %d", this.MaxInflight, this.maxInFlightPer, this.PoolSize)
+	log.Println("Max Inflight %d, Per %d, Poolsize %d", this.MaxInFlight, this.maxInFlightPer, this.PoolSize)
 	c.maxInFlight = this.maxInFlightPer
 	go c.eventLoop()
 	return c, nil
@@ -376,6 +378,11 @@ func (this *JsonClient) ApiCall(req *cheshire.Request, responseChan chan *cheshi
 	}
 	_, err = this.doApiCall(conn, req, responseChan, errorChan)
 	return err
+}
+
+func (this *JsonClient) CurrentInFlight() int {
+	log.Println("CurrentInflight is not implemented!")
+	return 0
 }
 
 func (this *JsonClient) doApiCallSync(conn *cheshireConn, req *cheshire.Request, timeout time.Duration) (*cheshire.Response, error) {
