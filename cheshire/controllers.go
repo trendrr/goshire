@@ -4,6 +4,14 @@ import (
     "github.com/trendrr/goshire/dynmap"
 )
 
+
+// a Controller object
+type Controller interface {
+    Config() *ControllerConfig
+    HandleRequest(*Txn)
+}
+
+
 type Writer interface {
     //writes the response to the underlying channel 
     // i.e. either to an http response writer or json socket.
@@ -93,11 +101,6 @@ func NewControllerConfig(route string) *ControllerConfig {
     }
 }
 
-// a Controller object
-type Controller interface {
-    Config() *ControllerConfig
-    HandleRequest(*Txn)
-}
 
 // Implements the handle request, does the full filter stack.
 func HandleRequest(request *Request, conn Writer, controller Controller, serverConfig *ServerConfig) {
