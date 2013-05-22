@@ -4,6 +4,9 @@ import(
     "strings"
     "regexp"
     "log"
+    "bufio"
+    "fmt"
+    "unicode/utf8"
 )
 
 // Simple parser for TOML 
@@ -11,8 +14,10 @@ import(
 
 
 func ParseTOML(str string) (*DynMap, error) {
+    //TODO 
 
 
+    return New(), nil
 }
 
 type toml struct {
@@ -26,7 +31,7 @@ type toml struct {
 func (this *toml) parseNext() error {
     str, err := readln(this.r)
 
-    if err := nil {
+    if err != nil {
         return err
     }
 
@@ -43,8 +48,8 @@ func (this *toml) parseNext() error {
 
     if strings.HasPrefix(str, "[") {
         //change the key
-        str = strings.TrimPrefix(str, "[")
-        str = strings.TrimSuffix(str, "]")
+        str = strings.TrimLeft(str, "[")
+        str = strings.TrimRight(str, "]")
         // allways have a trailing dot
         this.key = fmt.Sprintf("%s.", str)
         return nil
@@ -55,8 +60,8 @@ func (this *toml) parseNext() error {
     if len(tmp) != 2 {
         return fmt.Errorf("Error on line: %s, no equals sign!", str)
     }
-    key = strings.TrimSpace(tmp[0])
-    value = strings.TrimSpace(tmp[1])
+    key := strings.TrimSpace(tmp[0])
+    value := strings.TrimSpace(tmp[1])
 
     if !strings.HasPrefix(value, "[") {
         //its not an array
@@ -80,6 +85,7 @@ func (this *toml) parseNext() error {
         str = fmt.Sprintf("%s %s", str, ln)
     }
 
+    return nil
 
 
 }
@@ -88,7 +94,6 @@ func toSlice(str string, pos int) ([]interface{}, bool, int) {
     ret := make([]interface{}, 0)
     //assume str[pos] == "["
 
-    cur := ""
     for i := pos+1; i < len(str); {
         
         r, width := utf8.DecodeRuneInString(str[i:])
@@ -104,15 +109,25 @@ func toSlice(str string, pos int) ([]interface{}, bool, int) {
             continue
         }
  
+        if r == ']' {
+            //the slice is ended!
+            return ret, true, i+1
+
+        }
         i += width
 
 
     }    
 
-
+    // badness
+    return ret, false, len(str)
 }
 
-
+// removes any comments from this line
+func removeComment(str string) (string) {
+    //TODO
+    return str
+}
 
 func readln(r *bufio.Reader) (string, error) {
   var (isPrefix bool = true
@@ -123,23 +138,20 @@ func readln(r *bufio.Reader) (string, error) {
       line, isPrefix, err = r.ReadLine()
       ln = append(ln, line...)
   }
-  return string(ln),err
+  return removeComment(string(ln)),err
 }
 
 //return the quoted string (minus the quotes)
-// return the ending position in the string (closing quote + 1)
-func toString(str string) (string, bool, int) {
-    str = strings.Trim(s, "\"")
-
-
+// return the string following the quoted string.
+func toString(str string) (string, string) {
+    //TODO 
+    return "", str 
 }
 
 // Because we are using dynmap we dont need to convert anything, just return the string after verification 
-func toVal(str string) (interface{}, bool, int) {
+func toVal(str string) (interface{}, bool) {
 
     s := strings.TrimSpace(str)
-
-    //TODO Deal with the damn comments!
 
     if strings.HasPrefix(s, "\"") {
         //its a string!
