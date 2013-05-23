@@ -98,6 +98,12 @@ func (this *HttpClient) ApiCallSync(req *cheshire.Request, timeout time.Duration
 	url := fmt.Sprintf("http://%s%s", this.Address, uri)
 	//convert to an http.Request
 	request, err := http.NewRequest(req.Method(), url, reqBody)
+
+	if req.Method() != "GET" {
+		//set the content type
+		request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	}
+
 	if err != nil {
 		return nil, err
 	}
