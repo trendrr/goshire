@@ -65,13 +65,20 @@ func (this *DynMap) MarshalURL() (string, error) {
 }
 
 // Unmarshals a url encoded string.
-// will also parse rails style maps in the form key[key1][key2]=val\
+// will also parse rails style maps in the form key[key1][key2]=val
 func (this *DynMap) UnmarshalURL(urlstring string) error {
 	//TODO: split on ?
 	values, err := url.ParseQuery(urlstring)
 	if err != nil {
 		return err
 	}
+	
+	return this.UnmarshalURLValues(values)
+}
+
+// Unmarshals url.Values into the map.
+// Will correctly handle rails style maps in the form key[key1][key2]=val 
+func (this *DynMap) UnmarshalURLValues(values url.Values) error {
 	for k := range values {
 		var v = values[k]
 		key := strings.Replace(k, "[", ".", -1)

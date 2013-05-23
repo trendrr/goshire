@@ -6,8 +6,9 @@ import (
 	"github.com/trendrr/goshire/dynmap"
 	"log"
 	"net/http"
-	"net/url"
+	// "net/url"
 	"sync"
+	// "bytes"
 )
 
 type HttpWriter struct {
@@ -86,6 +87,14 @@ func (this *httpHandler) ServeHTTP(writer http.ResponseWriter, req *http.Request
 }
 
 func ToStrestRequest(req *http.Request) *Request {
+	
+	//print out the http request.
+	// log.Println("*******************")
+	// var doc bytes.Buffer
+	// req.Write(&doc)
+	// log.Println(doc.String())
+	// log.Println("*******************")
+
 	var request = NewRequest(req.URL.Path, req.Method)
 	request.SetUri(req.URL.Path)
 	request.SetMethod(req.Method)
@@ -95,31 +104,19 @@ func ToStrestRequest(req *http.Request) *Request {
 		request.SetTxnAccept("single")
 	}
 
-	if req.Method == "POST" || req.Method == "PUT" {
-		req.ParseForm()
-		pms, _ := dynmap.ToDynMap(parseValues(req.Form))
-		request.SetParams(pms)
-	} else {
-		//parse the query params
-		values := req.URL.Query()
-		pms, _ := dynmap.ToDynMap(parseValues(values))
-		request.SetParams(pms)
+	err := req.ParseForm()
+	if err != nil {
+		log.Printf("Error parsing form values: %s", err)
 	}
+	params := dynmap.New()
+	err = params.UnmarshalURLValues(req.Form)
+	if err != nil {
+		log.Printf("Error parsing form values: %s", err)	
+	}
+	request.SetParams(params)
 	return request
 }
 
-func parseValues(values url.Values) map[string]interface{} {
-	params := map[string]interface{}{}
-	for k := range values {
-		var v = values[k]
-		if len(v) == 1 {
-			params[k] = v[0]
-		} else {
-			params[k] = v
-		}
-	}
-	return params
-}
 
 func HttpListen(port int, serverConfig *ServerConfig) error {
 	handler := &httpHandler{serverConfig}
