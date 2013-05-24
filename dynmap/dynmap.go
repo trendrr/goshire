@@ -2,12 +2,13 @@ package dynmap
 
 import (
 	"strings"
-	// "log"
+	"log"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
 	"time"
+	"reflect"
 )
 
 //Dont make this a map type, since we want the option of 
@@ -61,6 +62,9 @@ func (this *DynMap) MarshalURL() (string, error) {
 			return "", err
 		}
 	}
+
+	str := vals.Encode()
+	log.Printf(str)
 	return vals.Encode(), nil
 }
 
@@ -107,13 +111,14 @@ func (this *DynMap) urlEncode(vals *url.Values, key string, value interface{}) e
 		}
 		return nil
 	}
-	switch v := value.(type) {
-	case []interface{}:
-		for _, tmp := range v {
-			this.urlEncode(vals, key, tmp)
+	r := reflect.ValueOf(value)
+	//now test if it is an array
+	if r.Kind() == reflect.Array || r.Kind() == reflect.Slice {
+		for i :=0; i < r.Len(); i++ {
+			this.urlEncode(vals, key, r.Index(i).Interface())
 		}
-		return nil
 	}
+
 	vals.Add(key, ToString(value))
 	return nil
 }
