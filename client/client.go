@@ -15,6 +15,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"bytes"
 )
 
 var strestId int64 = int64(0)
@@ -79,25 +80,40 @@ func (this *HttpClient) ApiCall(req *cheshire.Request, responseChan chan *cheshi
 
 func (this *HttpClient) ApiCallSync(req *cheshire.Request, timeout time.Duration) (*cheshire.Response, error) {
 	uri := req.Uri()
-	pms, err := req.Params().MarshalURL()
-	if err != nil {
-		return nil, err
-	}
-	reqBody := strings.NewReader("")
 
+	var reqBody io.Reader
+	
 	if req.Method() == "GET" {
 		joiner := "&"
 		//add params to the uri
 		if !strings.Contains(uri, "?") {
 			joiner = "?"
 		}
+
+		pms, err := req.Params().MarshalURL()
+		if err != nil {
+			return nil, err
+		}
 		uri = fmt.Sprintf("%s%s%s", uri, joiner, pms)
 	} else {
-		reqBody = strings.NewReader(pms)
+		// set the request body as json
+		json, err := req.Params().MarshalJSON()
+		if err != nil {
+			return nil, err
+		}
+
+		// log.Printf("JSON %s", string(json))
+		reqBody = bytes.NewReader(json)
 	}
 	url := fmt.Sprintf("http://%s%s", this.Address, uri)
 	//convert to an http.Request
 	request, err := http.NewRequest(req.Method(), url, reqBody)
+
+	if req.Method() != "GET" {
+		//set the content type
+		request.Header.Set("Content-Type", "application/json")
+	}
+
 	if err != nil {
 		return nil, err
 	}
