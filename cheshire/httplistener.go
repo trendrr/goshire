@@ -8,6 +8,9 @@ import (
 	"net/http"
 	// "net/url"
 	"sync"
+	"io"
+	"strings"
+	"io/ioutil"
 	// "bytes"
 )
 
@@ -104,19 +107,46 @@ func ToStrestRequest(req *http.Request) *Request {
 		request.SetTxnAccept("single")
 	}
 
+	//deal with the params
+
+	params := dynmap.New()
+
+	//we always do parse form since it will handle the 
+	// url params as well
 	err := req.ParseForm()
 	if err != nil {
 		log.Printf("Error parsing form values: %s", err)
 	}
-	params := dynmap.New()
 	err = params.UnmarshalURLValues(req.Form)
 	if err != nil {
 		log.Printf("Error parsing form values: %s", err)	
 	}
+
+	//now deal with possible different content types.
+	ct := req.Header.Get("Content-Type")
+	switch {
+	case strings.Contains(ct, "json") :
+		//parse as json
+		bytes, err := ReadHttpBody(req)
+		if err != nil {
+			log.Printf("ERROR reading body %s", err)
+		}
+		err = params.UnmarshalJSON(bytes)
+	}
+
 	request.SetParams(params)
 	return request
 }
 
+// reads the whole body of an http request
+func ReadHttpBody(req *http.Request) ([]byte, error) {
+	var reader io.Reader = req.Body
+   	maxFormSize := int64(1<<63 - 1)
+    maxFormSize = int64(10 << 20) // 10 MB is a lot of text.
+   	reader = io.LimitReader(req.Body, maxFormSize+1)
+	b, e := ioutil.ReadAll(reader)
+	return b, e
+}
 
 func HttpListen(port int, serverConfig *ServerConfig) error {
 	handler := &httpHandler{serverConfig}
