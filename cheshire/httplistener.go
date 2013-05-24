@@ -6,8 +6,12 @@ import (
 	"github.com/trendrr/goshire/dynmap"
 	"log"
 	"net/http"
-	"net/url"
+	// "net/url"
 	"sync"
+	"io"
+	"strings"
+	"io/ioutil"
+	// "bytes"
 )
 
 type HttpWriter struct {
@@ -86,6 +90,14 @@ func (this *httpHandler) ServeHTTP(writer http.ResponseWriter, req *http.Request
 }
 
 func ToStrestRequest(req *http.Request) *Request {
+	
+	//print out the http request.
+	// log.Println("*******************")
+	// var doc bytes.Buffer
+	// req.Write(&doc)
+	// log.Println(doc.String())
+	// log.Println("*******************")
+
 	var request = NewRequest(req.URL.Path, req.Method)
 	request.SetUri(req.URL.Path)
 	request.SetMethod(req.Method)
@@ -95,30 +107,45 @@ func ToStrestRequest(req *http.Request) *Request {
 		request.SetTxnAccept("single")
 	}
 
-	if req.Method == "POST" || req.Method == "PUT" {
-		req.ParseForm()
-		pms, _ := dynmap.ToDynMap(parseValues(req.Form))
-		request.SetParams(pms)
-	} else {
-		//parse the query params
-		values := req.URL.Query()
-		pms, _ := dynmap.ToDynMap(parseValues(values))
-		request.SetParams(pms)
+	//deal with the params
+
+	params := dynmap.New()
+
+	//we always do parse form since it will handle the 
+	// url params as well
+	err := req.ParseForm()
+	if err != nil {
+		log.Printf("Error parsing form values: %s", err)
 	}
+	err = params.UnmarshalURLValues(req.Form)
+	if err != nil {
+		log.Printf("Error parsing form values: %s", err)	
+	}
+
+	//now deal with possible different content types.
+	ct := req.Header.Get("Content-Type")
+	switch {
+	case strings.Contains(ct, "json") :
+		//parse as json
+		bytes, err := ReadHttpBody(req)
+		if err != nil {
+			log.Printf("ERROR reading body %s", err)
+		}
+		err = params.UnmarshalJSON(bytes)
+	}
+
+	request.SetParams(params)
 	return request
 }
 
-func parseValues(values url.Values) map[string]interface{} {
-	params := map[string]interface{}{}
-	for k := range values {
-		var v = values[k]
-		if len(v) == 1 {
-			params[k] = v[0]
-		} else {
-			params[k] = v
-		}
-	}
-	return params
+// reads the whole body of an http request
+func ReadHttpBody(req *http.Request) ([]byte, error) {
+	var reader io.Reader = req.Body
+   	maxFormSize := int64(1<<63 - 1)
+    maxFormSize = int64(10 << 20) // 10 MB is a lot of text.
+   	reader = io.LimitReader(req.Body, maxFormSize+1)
+	b, e := ioutil.ReadAll(reader)
+	return b, e
 }
 
 func HttpListen(port int, serverConfig *ServerConfig) error {
