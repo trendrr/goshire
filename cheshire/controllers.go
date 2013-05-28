@@ -164,3 +164,12 @@ func NewController(route string, methods []string, handler func(*Txn)) *DefaultC
 func NewControllerAll(route string, handler func(*Txn)) *DefaultController {
     return NewController(route, []string{"ALL"}, handler)
 }
+
+// A default ping controller
+func PingController(txn *Txn) {
+    // log.Printf("PING! %s", request.Strest.Params)
+    response := NewResponse(txn)
+    response.Put("data", "PONG")
+    // log.Printf("Sending REsponse: %s", response.TxnId())
+    txn.Write(response)
+}
