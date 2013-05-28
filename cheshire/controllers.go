@@ -166,10 +166,10 @@ func NewControllerAll(route string, handler func(*Txn)) *DefaultController {
 }
 
 // A default ping controller
-func PingController(txn *cheshire.Txn) {
+func PingController(txn *Txn) {
     // log.Printf("PING! %s", request.Strest.Params)
-    response := cheshire.NewResponse(txn)
+    response := NewResponse(txn)
     response.Put("data", "PONG")
     // log.Printf("Sending REsponse: %s", response.TxnId())
     txn.Write(response)
-})
+}
