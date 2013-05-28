@@ -55,8 +55,10 @@ func HttpApiCallSync(address string, req *cheshire.Request, timeout time.Duratio
 }
 
 func NewHttp(address string) *HttpClient {
+	addr := strings.TrimLeft(address, "http://")
+
 	return &HttpClient{
-		Address: address,
+		Address: addr,
 	}
 }
 
@@ -105,6 +107,7 @@ func (this *HttpClient) ApiCallSync(req *cheshire.Request, timeout time.Duration
 		// log.Printf("JSON %s", string(json))
 		reqBody = bytes.NewReader(json)
 	}
+
 	url := fmt.Sprintf("http://%s%s", this.Address, uri)
 	//convert to an http.Request
 	request, err := http.NewRequest(req.Method(), url, reqBody)
