@@ -68,9 +68,22 @@ func (this *Bootstrap) InitWebSockets() {
 }
 
 func (this *Bootstrap) InitControllers() {
+	//We put the ping controller in by default.
+	
+	ping := false
 	for _, contr := range registerQueue {
+		if contr.C.Config().Route == "/ping" {
+			ping = true
+		}
 		this.Conf.Register(contr.Methods, contr.C)
 	}
+
+	if !ping {
+		m := []string{"GET"}
+		controller := NewController("/ping", m, PingController)
+		this.Conf.Register(m, controller)	
+	}
+
 }
 
 func (this *Bootstrap) AddFilters(filters ...ControllerFilter) {
@@ -91,16 +104,20 @@ type controllerWrapper struct {
 
 // Registers a controller funtion for api calls 
 func RegisterApi(route string, method string, handler func(*Txn), filters ...ControllerFilter) {
-	controller := NewController(route, []string{method}, handler)
+	m := strings.ToUpper(method)
+
+	controller := NewController(route, []string{m}, handler)
 	controller.Config().Filters = filters
-	Register([]string{method}, controller)
+	Register([]string{m}, controller)
 }
 
 // Registers a controller function for html pages  
 func RegisterHtml(route string, method string, handler func(*Txn), filters ...ControllerFilter) {
-	controller := NewHtmlController(route, []string{method}, handler)
+	m := strings.ToUpper(method)
+
+	controller := NewHtmlController(route, []string{m}, handler)
 	controller.Config().Filters = filters
-	Register([]string{method}, controller)
+	Register([]string{m}, controller)
 }
 
 // Registers a new controller
