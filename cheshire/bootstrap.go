@@ -68,9 +68,13 @@ func (this *Bootstrap) InitWebSockets() {
 }
 
 func (this *Bootstrap) InitControllers() {
+	//We put the ping controller in by default.
+	RegisterApi("/ping", "GET", PingController)
 	for _, contr := range registerQueue {
 		this.Conf.Register(contr.Methods, contr.C)
 	}
+
+
 }
 
 func (this *Bootstrap) AddFilters(filters ...ControllerFilter) {
