@@ -158,6 +158,9 @@ type JsonClient struct {
 	exitChan       chan int
 	connectLock    sync.RWMutex
 
+	//All reconnections happen in this channel
+	reconnectChan chan *cheshireConn
+
 	//The max number of requests that can be waiting for a response.
 	//When max inflight is reached, the client will start
 	//blocking and waiting for room.
@@ -188,6 +191,7 @@ func NewJson(host string, port int) (*JsonClient) {
 		isClosed:       false,
 		disconnectChan: make(chan *cheshireConn),
 		exitChan:       make(chan int),
+		reconnectChan:  make(chan *cheshireConn, 50),
 		PingUri:        "/ping",
 		PoolSize:		5,
 		MaxInFlight: 200,
@@ -290,14 +294,35 @@ func (this *JsonClient) nextConnection() (*cheshireConn, error) {
 	this.connectLock.RLock()
 	conn := this.conn[index]
 	this.connectLock.RUnlock()
-	if !conn.connected {
+	if !conn.Connected() {
 		return conn, fmt.Errorf("Not connected")
 	}
 	return conn, nil
 }
 
 //Attempt to close this connection and make a new connection.
-func (this *JsonClient) reconnect(oldconn *cheshireConn) (*cheshireConn, error) {
+func (this *JsonClient) reconnect(oldconn *cheshireConn) {
+	this.reconnectChan <- oldconn
+}
+
+func (this *JsonClient) reconnectLoop(closeChan chan bool) {
+	for {
+		select {
+		case <- closeChan :
+			log.Println("Closing reconnect loop")
+			return
+		case conn := <-this.reconnectChan :
+			err := this.reconn(conn)
+			if err != nil {
+				log.Printf("Error during reconnect -- %s", err)
+			}
+		}
+	}
+}
+
+//The actual reconnect logic.  do not call this directly, it is handled in a 
+// special go routine
+func (this *JsonClient) reconn(oldconn *cheshireConn) (error) {
 	if oldconn.connectedAt.After(time.Now().Add(-5 * time.Second)) {
 
 		log.Printf("Last connection attempted %s NOW is %s", oldconn.connectedAt.Local(), time.Now().Local())
@@ -305,8 +330,11 @@ func (this *JsonClient) reconnect(oldconn *cheshireConn) (*cheshireConn, error) 
 		//returning the old connection, because this was likely a concurrent reconnect 
 		// attempt, and perhaps the previous one was successfull
 		log.Println("Skipping reconnect too early")
-		return oldconn, nil
+		return nil
 	}
+	//update the connect attempt time.
+	oldconn.connectedAt = time.Now()
+
 	log.Println("Closing old")
 	oldconn.Close()
 
@@ -315,25 +343,33 @@ func (this *JsonClient) reconnect(oldconn *cheshireConn) (*cheshireConn, error) 
 	if err != nil {
 		log.Printf("COUldn't create new %s", err)
 
-		return oldconn, err
+		return err
 	}
 	this.connectLock.Lock()
+	defer this.connectLock.Unlock()
+
 	//double check the connection pool.  make certain no leaks
 	if this.conn[oldconn.poolIndex] != oldconn {
 		log.Println("Ack! old connection is not in the pool anymore!")
 		this.conn[oldconn.poolIndex].Close()
 	}
 	this.conn[oldconn.poolIndex] = con
-	this.connectLock.Unlock()
+	
 
 	log.Println("DONE RECONNECT %s", con)
-	return con, err
+	return err
 }
 
 func (this *JsonClient) eventLoop() {
 	//client event loop pings, and listens for client disconnects.
-	c := time.Tick(5 * time.Second)
+	pingTimer := time.Tick(5 * time.Second)
+
+	reconnectExit := make(chan bool)
+	go this.reconnectLoop(reconnectExit)
+
 	defer log.Println("CLOSED!!!!!!!!")
+	defer func (){reconnectExit <- true}()
+
 	for !this.isClosed {
 		select {
 		case <-this.exitChan:
@@ -344,7 +380,7 @@ func (this *JsonClient) eventLoop() {
 			}
 			this.isClosed = true
 			break
-		case <-c:
+		case <-pingTimer:
 			//ping all the connections.
 			
 			for _, conn := range(this.conn) {
@@ -449,7 +485,7 @@ func (this *JsonClient) doApiCall(conn *cheshireConn, req *cheshire.Request, res
 type cheshireConn struct {
 	net.Conn
 	addr           string
-	connected      bool
+	connected      bool  //TODO threadsafety
 	readTimeout    time.Duration
 	writeTimeout   time.Duration
 	incomingChan   chan *cheshire.Response
@@ -457,11 +493,12 @@ type cheshireConn struct {
 	exitChan       chan int
 	disconnectChan chan *cheshireConn
 	//map of txnId to request
-	requests    map[string]*cheshireRequest
+	requests    map[string]*cheshireRequest //TODO Threadsafety
 	connectedAt time.Time
 	maxInFlight int
 	//the index in the owning pool
 	poolIndex int
+	lock sync.RWMutex
 }
 
 //wrap a request so we dont lose track of the result channels
@@ -503,7 +540,20 @@ func newCheshireConn(addr string, disconnect chan *cheshireConn, writeTimeout ti
 	return nc, nil
 }
 
+func (this *cheshireConn) setConnected(v bool) {
+	this.lock.Lock()
+	defer this.lock.Unlock()
+	this.connected = v
+}
+
+func (this *cheshireConn) Connected() bool {
+	this.lock.RLock()
+	defer this.lock.RUnlock()
+	return this.connected
+}
+
 //returns the current # of requests in flight
+//unsafe
 func (this *cheshireConn) inflight() int {
 	return len(this.requests)
 }
@@ -526,7 +576,7 @@ func (this *cheshireConn) sendRequest(request *cheshire.Request, resultChan chan
 		sleeps++
 	}
 
-	if !this.connected {
+	if !this.Connected() {
 		return nil, fmt.Errorf("Not connected")
 	}
 
@@ -547,7 +597,7 @@ func (this *cheshireConn) sendRequest(request *cheshire.Request, resultChan chan
 }
 
 func (this *cheshireConn) Close() {
-	if !this.connected {
+	if !this.Connected() {
 		return //do nothing.
 	}
 	this.exitChan <- 1
@@ -602,7 +652,7 @@ func (this *cheshireConn) eventLoop() {
 	writer := bufio.NewWriter(this.Conn)
 
 	defer this.cleanup()
-	for this.connected {
+	for this.Connected() {
 		select {
 		case response := <-this.incomingChan:
 			req, ok := this.requests[response.TxnId()]
@@ -635,7 +685,7 @@ func (this *cheshireConn) eventLoop() {
 
 
 		case <-this.exitChan:
-			this.connected = false
+			this.setConnected(false)
 		}
 	}
 }
