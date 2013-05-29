@@ -306,6 +306,9 @@ func (this *JsonClient) reconnect(oldconn *cheshireConn) {
 }
 
 func (this *JsonClient) reconnectLoop(closeChan chan bool) {
+	//TODO is the closechan necessary?  will it get gc'ed if
+	// the go routine is abandoned?
+
 	for {
 		select {
 		case <- closeChan :
