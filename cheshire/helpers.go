@@ -17,6 +17,12 @@ func SendError(txn *Txn, code int, message string) (int, error) {
 	return c, err
 }
 
+// sends a standard 200 success response.  
+// will close the current transaction 
+func SendSuccess(txn *Txn) {
+	txn.Write(NewResponse(txn))
+}
+
 // Creates a new response based on this request txn.
 // auto fills the txn id
 func NewResponse(txn RequestTxnId) *Response {
