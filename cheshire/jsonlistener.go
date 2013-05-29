@@ -33,6 +33,7 @@ func (this *JsonWriter) Type() string {
 
 func JsonListen(port int, config *ServerConfig) error {
 	ln, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
+	defer ln.Close()
 	if err != nil {
 		// handle error
 		log.Println(err)
