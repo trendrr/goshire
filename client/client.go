@@ -221,10 +221,10 @@ func (this *JsonClient) Connect() error {
 
 	this.maxInFlightPer = int(this.MaxInFlight / this.PoolSize)
 	if this.maxInFlightPer < 10 {
-		log.Println("Max Inflight is less then 10 per connection, suggest raising it (%d)", this.maxInFlightPer)
+		log.Printf("Max Inflight is less then 10 per connection, suggest raising it (%d)", this.maxInFlightPer)
 	}
 	if this.maxInFlightPer < 2 {
-		log.Println("Setting max inflight to 2")
+		log.Printf("Setting max inflight to 2")
 		this.maxInFlightPer = 2
 	}
 
@@ -254,7 +254,7 @@ func (this *JsonClient) createConn() (*cheshireConn, error) {
 	if err != nil {
 		return nil, err
 	}
-	log.Println("Max Inflight %d, Per %d, Poolsize %d", this.MaxInFlight, this.maxInFlightPer, this.PoolSize)
+	log.Printf("Max Inflight %d, Per %d, Poolsize %d", this.MaxInFlight, this.maxInFlightPer, this.PoolSize)
 	c.maxInFlight = this.maxInFlightPer
 	go c.eventLoop()
 	return c, nil
@@ -298,7 +298,9 @@ func (this *JsonClient) nextConnection() (*cheshireConn, error) {
 
 //Attempt to close this connection and make a new connection.
 func (this *JsonClient) reconnect(oldconn *cheshireConn) (*cheshireConn, error) {
-	if oldconn.connectedAt.After(time.Now().Add(5 * time.Second)) {
+	if oldconn.connectedAt.After(time.Now().Add(-5 * time.Second)) {
+
+		log.Printf("Last connection attempted %s NOW is %s", oldconn.connectedAt.Local(), time.Now().Local())
 		//only allow one reconnect attempt per 5 second interval
 		//returning the old connection, because this was likely a concurrent reconnect 
 		// attempt, and perhaps the previous one was successfull
@@ -311,11 +313,16 @@ func (this *JsonClient) reconnect(oldconn *cheshireConn) (*cheshireConn, error) 
 	log.Println("Creating new!")
 	con, err := this.createConn()
 	if err != nil {
-		log.Println("COUldn't create new %s", err)
+		log.Printf("COUldn't create new %s", err)
 
 		return oldconn, err
 	}
 	this.connectLock.Lock()
+	//double check the connection pool.  make certain no leaks
+	if this.conn[oldconn.poolIndex] != oldconn {
+		log.Println("Ack! old connection is not in the pool anymore!")
+		this.conn[oldconn.poolIndex].Close()
+	}
 	this.conn[oldconn.poolIndex] = con
 	this.connectLock.Unlock()
 
