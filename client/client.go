@@ -485,7 +485,7 @@ func (this *JsonClient) doApiCall(conn *cheshireConn, req *cheshire.Request, res
 type cheshireConn struct {
 	net.Conn
 	addr           string
-	connected      bool  //TODO threadsafety
+	connected      bool  //use accessors only for threadsafety
 	readTimeout    time.Duration
 	writeTimeout   time.Duration
 	incomingChan   chan *cheshire.Response
@@ -555,6 +555,8 @@ func (this *cheshireConn) Connected() bool {
 //returns the current # of requests in flight
 //unsafe
 func (this *cheshireConn) inflight() int {
+	this.lock.RLock()
+	defer this.lock.RUnlock()
 	return len(this.requests)
 }
 
@@ -565,7 +567,7 @@ func (this *cheshireConn) inflight() int {
 func (this *cheshireConn) sendRequest(request *cheshire.Request, resultChan chan *cheshire.Response, errorChan chan error) (*cheshireRequest, error) {
 
 	sleeps := 0
-	for len(this.requests) > this.maxInFlight {
+	for this.inflight() > this.maxInFlight {
 		log.Printf("Max inflight (%d), sleeping one second", this.maxInFlight)
 		if sleeps > 20 {
 			//should close this connection..
@@ -638,10 +640,13 @@ func (this *cheshireConn) cleanup() {
 		req.errorChan <- err
 	}
 	log.Println("ended outchan")
+	this.lock.Lock()
 	for k, v := range this.requests {
 		v.errorChan <- err
 		delete(this.requests, k)
 	}
+	this.lock.Unlock()
+
 	log.Println("Ended request clear")
 	this.disconnectChan <- this
 }
@@ -655,7 +660,9 @@ func (this *cheshireConn) eventLoop() {
 	for this.Connected() {
 		select {
 		case response := <-this.incomingChan:
+			this.lock.RLock()
 			req, ok := this.requests[response.TxnId()]
+			this.lock.RUnlock()
 			if !ok {
 				log.Printf("Uhh, received response, but had no request %s", response)
 				// for k,_ := range(this.requests) {
@@ -666,12 +673,15 @@ func (this *cheshireConn) eventLoop() {
 			req.resultChan <- response
 			//remove if txn is finished..
 			if response.TxnStatus() == "completed" {
+				this.lock.Lock()
 				delete(this.requests, response.TxnId())
+				this.lock.Unlock()
 			}
 		case request := <-this.outgoingChan:
 			//add to the request map
-
+			this.lock.Lock()
 			this.requests[request.req.TxnId()] = request
+			this.lock.Unlock()
 
 			//send the request
 			this.SetWriteDeadline(time.Now().Add(this.writeTimeout))
