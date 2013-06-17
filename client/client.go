@@ -495,6 +495,9 @@ type cheshireConn struct {
 	outgoingChan   chan *cheshireRequest
 	exitChan       chan int
 	disconnectChan chan *cheshireConn
+	//if max inflight is reached, we wait on this chan
+	inwaitChan chan bool
+	
 	//map of txnId to request
 	requests    map[string]*cheshireRequest //TODO Threadsafety
 	connectedAt time.Time
@@ -536,6 +539,8 @@ func newCheshireConn(addr string, disconnect chan *cheshireConn, writeTimeout ti
 		exitChan:       make(chan int),
 		incomingChan:   make(chan *cheshire.Response, 25),
 		outgoingChan:   make(chan *cheshireRequest, 25),
+		//if max inflight is reached, we wait on this chan
+		inwaitChan: make(chan bool),
 		disconnectChan: disconnect,
 		requests:       make(map[string]*cheshireRequest),
 		connectedAt:    time.Now(),
@@ -569,16 +574,18 @@ func (this *cheshireConn) inflight() int {
 // errors are returned, not sent to the errorchan
 func (this *cheshireConn) sendRequest(request *cheshire.Request, resultChan chan *cheshire.Response, errorChan chan error) (*cheshireRequest, error) {
 
-	sleeps := 0
-	for this.inflight() > this.maxInFlight {
-		log.Printf("Max inflight (%d), sleeping one second", this.maxInFlight)
-		if sleeps > 20 {
+	if this.inflight() > this.maxInFlight {
+		
+		log.Printf("Max inflight reached (%d) of (%d), waiting pool index: %d", this.inflight(), this.maxInFlight, this.poolIndex)
+		//TODO: timeout channel
+		select {
+		case <- this.inwaitChan :
+			//yay
+		case <-time.After(20 * time.Second): 
 			//should close this connection..
 			this.Close()
 			return nil, fmt.Errorf("Max inflight sustained for more then 20 seconds, fail")
 		}
-		time.Sleep(1 * time.Second)
-		sleeps++
 	}
 
 	if !this.Connected() {
@@ -628,6 +635,12 @@ func (this *cheshireConn) listener() {
 			break
 		}
 		this.incomingChan <- res
+
+		//alert the inwaitchan, non-blocking
+		select {
+		case this.inwaitChan <- true :
+		default:
+		}
 	}
 }
 
