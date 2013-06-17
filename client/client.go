@@ -158,6 +158,9 @@ type JsonClient struct {
 	exitChan       chan int
 	connectLock    sync.RWMutex
 
+	//All reconnections happen in this channel
+	reconnectChan chan *cheshireConn
+
 	//The max number of requests that can be waiting for a response.
 	//When max inflight is reached, the client will start
 	//blocking and waiting for room.
@@ -188,6 +191,7 @@ func NewJson(host string, port int) (*JsonClient) {
 		isClosed:       false,
 		disconnectChan: make(chan *cheshireConn),
 		exitChan:       make(chan int),
+		reconnectChan:  make(chan *cheshireConn, 50),
 		PingUri:        "/ping",
 		PoolSize:		5,
 		MaxInFlight: 200,
@@ -221,10 +225,10 @@ func (this *JsonClient) Connect() error {
 
 	this.maxInFlightPer = int(this.MaxInFlight / this.PoolSize)
 	if this.maxInFlightPer < 10 {
-		log.Println("Max Inflight is less then 10 per connection, suggest raising it (%d)", this.maxInFlightPer)
+		log.Printf("Max Inflight is less then 10 per connection, suggest raising it (%d)", this.maxInFlightPer)
 	}
 	if this.maxInFlightPer < 2 {
-		log.Println("Setting max inflight to 2")
+		log.Printf("Setting max inflight to 2")
 		this.maxInFlightPer = 2
 	}
 
@@ -254,7 +258,7 @@ func (this *JsonClient) createConn() (*cheshireConn, error) {
 	if err != nil {
 		return nil, err
 	}
-	log.Println("Max Inflight %d, Per %d, Poolsize %d", this.MaxInFlight, this.maxInFlightPer, this.PoolSize)
+	log.Printf("Max Inflight %d, Per %d, Poolsize %d", this.MaxInFlight, this.maxInFlightPer, this.PoolSize)
 	c.maxInFlight = this.maxInFlightPer
 	go c.eventLoop()
 	return c, nil
@@ -290,43 +294,85 @@ func (this *JsonClient) nextConnection() (*cheshireConn, error) {
 	this.connectLock.RLock()
 	conn := this.conn[index]
 	this.connectLock.RUnlock()
-	if !conn.connected {
+	if !conn.Connected() {
 		return conn, fmt.Errorf("Not connected")
 	}
 	return conn, nil
 }
 
 //Attempt to close this connection and make a new connection.
-func (this *JsonClient) reconnect(oldconn *cheshireConn) (*cheshireConn, error) {
-	if oldconn.connectedAt.After(time.Now().Add(5 * time.Second)) {
+func (this *JsonClient) reconnect(oldconn *cheshireConn) {
+	this.reconnectChan <- oldconn
+}
+
+func (this *JsonClient) reconnectLoop(closeChan chan bool) {
+	//TODO is the closechan necessary?  will it get gc'ed if
+	// the go routine is abandoned?
+
+	for {
+		select {
+		case <- closeChan :
+			log.Println("Closing reconnect loop")
+			return
+		case conn := <-this.reconnectChan :
+			err := this.reconn(conn)
+			if err != nil {
+				log.Printf("Error during reconnect -- %s", err)
+			}
+		}
+	}
+}
+
+//The actual reconnect logic.  do not call this directly, it is handled in a 
+// special go routine
+func (this *JsonClient) reconn(oldconn *cheshireConn) (error) {
+	if oldconn.connectedAt.After(time.Now().Add(-5 * time.Second)) {
+
+		log.Printf("Last connection attempted %s NOW is %s", oldconn.connectedAt.Local(), time.Now().Local())
 		//only allow one reconnect attempt per 5 second interval
 		//returning the old connection, because this was likely a concurrent reconnect 
 		// attempt, and perhaps the previous one was successfull
 		log.Println("Skipping reconnect too early")
-		return oldconn, nil
+		return nil
 	}
+	//update the connect attempt time.
+	oldconn.connectedAt = time.Now()
+
 	log.Println("Closing old")
 	oldconn.Close()
 
 	log.Println("Creating new!")
 	con, err := this.createConn()
 	if err != nil {
-		log.Println("COUldn't create new %s", err)
+		log.Printf("COUldn't create new %s", err)
 
-		return oldconn, err
+		return err
 	}
 	this.connectLock.Lock()
+	defer this.connectLock.Unlock()
+
+	//double check the connection pool.  make certain no leaks
+	if this.conn[oldconn.poolIndex] != oldconn {
+		log.Println("Ack! old connection is not in the pool anymore!")
+		this.conn[oldconn.poolIndex].Close()
+	}
 	this.conn[oldconn.poolIndex] = con
-	this.connectLock.Unlock()
+	
 
 	log.Println("DONE RECONNECT %s", con)
-	return con, err
+	return err
 }
 
 func (this *JsonClient) eventLoop() {
 	//client event loop pings, and listens for client disconnects.
-	c := time.Tick(5 * time.Second)
+	pingTimer := time.Tick(5 * time.Second)
+
+	reconnectExit := make(chan bool)
+	go this.reconnectLoop(reconnectExit)
+
 	defer log.Println("CLOSED!!!!!!!!")
+	defer func (){reconnectExit <- true}()
+
 	for !this.isClosed {
 		select {
 		case <-this.exitChan:
@@ -337,7 +383,7 @@ func (this *JsonClient) eventLoop() {
 			}
 			this.isClosed = true
 			break
-		case <-c:
+		case <-pingTimer:
 			//ping all the connections.
 			
 			for _, conn := range(this.conn) {
@@ -442,19 +488,23 @@ func (this *JsonClient) doApiCall(conn *cheshireConn, req *cheshire.Request, res
 type cheshireConn struct {
 	net.Conn
 	addr           string
-	connected      bool
+	connected      bool  //use accessors only for threadsafety
 	readTimeout    time.Duration
 	writeTimeout   time.Duration
 	incomingChan   chan *cheshire.Response
 	outgoingChan   chan *cheshireRequest
 	exitChan       chan int
 	disconnectChan chan *cheshireConn
+	//if max inflight is reached, we wait on this chan
+	inwaitChan chan bool
+	
 	//map of txnId to request
-	requests    map[string]*cheshireRequest
+	requests    map[string]*cheshireRequest //TODO Threadsafety
 	connectedAt time.Time
 	maxInFlight int
 	//the index in the owning pool
 	poolIndex int
+	lock sync.RWMutex
 }
 
 //wrap a request so we dont lose track of the result channels
@@ -489,6 +539,8 @@ func newCheshireConn(addr string, disconnect chan *cheshireConn, writeTimeout ti
 		exitChan:       make(chan int),
 		incomingChan:   make(chan *cheshire.Response, 25),
 		outgoingChan:   make(chan *cheshireRequest, 25),
+		//if max inflight is reached, we wait on this chan
+		inwaitChan: make(chan bool),
 		disconnectChan: disconnect,
 		requests:       make(map[string]*cheshireRequest),
 		connectedAt:    time.Now(),
@@ -496,8 +548,23 @@ func newCheshireConn(addr string, disconnect chan *cheshireConn, writeTimeout ti
 	return nc, nil
 }
 
+func (this *cheshireConn) setConnected(v bool) {
+	this.lock.Lock()
+	defer this.lock.Unlock()
+	this.connected = v
+}
+
+func (this *cheshireConn) Connected() bool {
+	this.lock.RLock()
+	defer this.lock.RUnlock()
+	return this.connected
+}
+
 //returns the current # of requests in flight
+//unsafe
 func (this *cheshireConn) inflight() int {
+	this.lock.RLock()
+	defer this.lock.RUnlock()
 	return len(this.requests)
 }
 
@@ -507,19 +574,21 @@ func (this *cheshireConn) inflight() int {
 // errors are returned, not sent to the errorchan
 func (this *cheshireConn) sendRequest(request *cheshire.Request, resultChan chan *cheshire.Response, errorChan chan error) (*cheshireRequest, error) {
 
-	sleeps := 0
-	for len(this.requests) > this.maxInFlight {
-		log.Printf("Max inflight (%d), sleeping one second", this.maxInFlight)
-		if sleeps > 20 {
+	if this.inflight() > this.maxInFlight {
+		
+		log.Printf("Max inflight reached (%d) of (%d), waiting pool index: %d", this.inflight(), this.maxInFlight, this.poolIndex)
+		//TODO: timeout channel
+		select {
+		case <- this.inwaitChan :
+			//yay
+		case <-time.After(20 * time.Second): 
 			//should close this connection..
 			this.Close()
 			return nil, fmt.Errorf("Max inflight sustained for more then 20 seconds, fail")
 		}
-		time.Sleep(1 * time.Second)
-		sleeps++
 	}
 
-	if !this.connected {
+	if !this.Connected() {
 		return nil, fmt.Errorf("Not connected")
 	}
 
@@ -540,7 +609,7 @@ func (this *cheshireConn) sendRequest(request *cheshire.Request, resultChan chan
 }
 
 func (this *cheshireConn) Close() {
-	if !this.connected {
+	if !this.Connected() {
 		return //do nothing.
 	}
 	this.exitChan <- 1
@@ -566,6 +635,12 @@ func (this *cheshireConn) listener() {
 			break
 		}
 		this.incomingChan <- res
+
+		//alert the inwaitchan, non-blocking
+		select {
+		case this.inwaitChan <- true :
+		default:
+		}
 	}
 }
 
@@ -581,10 +656,13 @@ func (this *cheshireConn) cleanup() {
 		req.errorChan <- err
 	}
 	log.Println("ended outchan")
+	this.lock.Lock()
 	for k, v := range this.requests {
 		v.errorChan <- err
 		delete(this.requests, k)
 	}
+	this.lock.Unlock()
+
 	log.Println("Ended request clear")
 	this.disconnectChan <- this
 }
@@ -595,10 +673,12 @@ func (this *cheshireConn) eventLoop() {
 	writer := bufio.NewWriter(this.Conn)
 
 	defer this.cleanup()
-	for this.connected {
+	for this.Connected() {
 		select {
 		case response := <-this.incomingChan:
+			this.lock.RLock()
 			req, ok := this.requests[response.TxnId()]
+			this.lock.RUnlock()
 			if !ok {
 				log.Printf("Uhh, received response, but had no request %s", response)
 				// for k,_ := range(this.requests) {
@@ -609,12 +689,15 @@ func (this *cheshireConn) eventLoop() {
 			req.resultChan <- response
 			//remove if txn is finished..
 			if response.TxnStatus() == "completed" {
+				this.lock.Lock()
 				delete(this.requests, response.TxnId())
+				this.lock.Unlock()
 			}
 		case request := <-this.outgoingChan:
 			//add to the request map
-
+			this.lock.Lock()
 			this.requests[request.req.TxnId()] = request
+			this.lock.Unlock()
 
 			//send the request
 			this.SetWriteDeadline(time.Now().Add(this.writeTimeout))
@@ -628,7 +711,7 @@ func (this *cheshireConn) eventLoop() {
 
 
 		case <-this.exitChan:
-			this.connected = false
+			this.setConnected(false)
 		}
 	}
 }
