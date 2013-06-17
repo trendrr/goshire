@@ -136,13 +136,13 @@ func (this *DynMap) UnmarshalJSON(bytes []byte) error {
 func (this *DynMap) GetUint64(key string) (uint64, bool) {
 	tmp, ok := this.Get(key)
 	if !ok {
-		return -1, ok
+		return 0, ok
 	}
 	val, err := ToInt64(tmp)
 	if err == nil {
 		return uint64(val), true
 	}
-	return -1, false
+	return 0, false
 }
 
 func (this *DynMap) MustUint64(key string, def uint64) uint64 {
