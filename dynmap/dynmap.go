@@ -133,6 +133,27 @@ func (this *DynMap) UnmarshalJSON(bytes []byte) error {
 }
 
 // Gets the value at the specified key as an int64.  returns -1,false if value not available or is not convertable
+func (this *DynMap) GetUint64(key string) (uint64, bool) {
+	tmp, ok := this.Get(key)
+	if !ok {
+		return 0, ok
+	}
+	val, err := ToInt64(tmp)
+	if err == nil {
+		return uint64(val), true
+	}
+	return 0, false
+}
+
+func (this *DynMap) MustUint64(key string, def uint64) uint64 {
+	v, ok := this.GetUint64(key)
+	if ok {
+		return v
+	}
+	return def
+}
+
+// Gets the value at the specified key as an int64.  returns -1,false if value not available or is not convertable
 func (this *DynMap) GetInt64(key string) (int64, bool) {
 	tmp, ok := this.Get(key)
 	if !ok {
