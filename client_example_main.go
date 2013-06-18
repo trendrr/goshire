@@ -23,7 +23,7 @@ func main() {
     // 2013/05/16 12:56:28 Pinged 100000 in 38 seconds
 
     client.PoolSize = 10
-    client.MaxInflight = 500
+    client.MaxInFlight = 500
     client.Connect()
     defer client.Close()
     //warm it up
@@ -41,7 +41,7 @@ func main() {
 
     resChan := make(chan *cheshire.Response, 20)
     errorChan := make(chan error, 200)
-    total := 100000
+    total := 1000000
     start := time.Now().Unix()
     go func() {
 
