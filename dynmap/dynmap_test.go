@@ -7,13 +7,13 @@ import (
 
 //go test -v github.com/trendrr/goshire/cheshire
 func TestJsonMarshal(t *testing.T) {
-	mp := NewDynMap()
+	mp := New()
 	mp.PutWithDot("this.that.test", 80)
 	mp.PutWithDot("this.eight", 8)
 	bytes, _ := mp.MarshalJSON()
 	log.Printf("Got JSON %s", bytes)
 
-	un := NewDynMap()
+	un := New()
 	un.UnmarshalJSON(bytes)
 
 	unbytes, _ := mp.MarshalJSON()
@@ -23,7 +23,7 @@ func TestJsonMarshal(t *testing.T) {
 }
 
 func TestURLEncode(t *testing.T) {
-	mp := NewDynMap()
+	mp := New()
 	mp.PutWithDot("this.that.test", 80)
 	mp.PutWithDot("this.eight", 8)
 	url, err := mp.MarshalURL()
@@ -33,10 +33,11 @@ func TestURLEncode(t *testing.T) {
 
 	log.Printf("Got URL : %s", url)
 
-	un := NewDynMap()
+	un := New()
 	un.UnmarshalURL(url)
 
 	if un.MustInt("this.that.test", 0) != 80 {
 		t.Errorf("Unmarshal URL failure ")
 	}
 }
+
