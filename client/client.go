@@ -499,7 +499,7 @@ type cheshireConn struct {
 	inwaitChan chan bool
 	
 	//map of txnId to request
-	requests    map[string]*cheshireRequest //TODO Threadsafety
+	requests    map[string]*cheshireRequest
 	connectedAt time.Time
 	maxInFlight int
 	//the index in the owning pool
