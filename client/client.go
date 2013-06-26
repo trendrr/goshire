@@ -1,9 +1,10 @@
 package client
 
 import (
+	"bytes"
 	"fmt"
-	"github.com/trendrr/goshire/dynmap"
 	"github.com/trendrr/goshire/cheshire"
+	"github.com/trendrr/goshire/dynmap"
 	"io"
 	"io/ioutil"
 	"log"
@@ -11,7 +12,6 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
-	"bytes"
 )
 
 var strestId int64 = int64(0)
@@ -80,7 +80,7 @@ func (this *HttpClient) ApiCallSync(req *cheshire.Request, timeout time.Duration
 	uri := req.Uri()
 
 	var reqBody io.Reader
-	
+
 	if req.Method() == "GET" {
 		joiner := "&"
 		//add params to the uri
@@ -136,7 +136,6 @@ func (this *HttpClient) ApiCallSync(req *cheshire.Request, timeout time.Duration
 	return response, nil
 }
 
-
 // Client that utilizes the json protocol and
 // connections are static.
 // maintains an internal connection pool.
@@ -145,10 +144,9 @@ type JsonClient struct {
 	Port     int
 	PingUri  string
 	shutdown int32
-	pool *Pool
+	pool     *Pool
 	PoolSize int
-	exitChan       chan int
-
+	exitChan chan int
 
 	//The max number of requests that can be waiting for a response.
 	//When max inflight is reached, the client will start
@@ -158,39 +156,39 @@ type JsonClient struct {
 
 	// Number of times we should retry to send a request if there is a connection problem
 	// default is 1
-	Retries int 
+	Retries int
 
 	//The amount of time to pause between retries
 	// default is 500 millis
 	RetryPause time.Duration
 
-	count uint64
+	count          uint64
 	maxInFlightPer int
 }
 
-//Creates a new Json client 
+//Creates a new Json client
 // Remember to call client.Connect
-func NewJson(host string, port int) (*JsonClient) {
+func NewJson(host string, port int) *JsonClient {
 	client := &JsonClient{
-		Host:           host,
-		Port:           port,
-		shutdown:       1,
-		exitChan:       make(chan int),
-		PingUri:        "/ping",
-		PoolSize:		5,
+		Host:        host,
+		Port:        port,
+		shutdown:    1,
+		exitChan:    make(chan int),
+		PingUri:     "/ping",
+		PoolSize:    5,
 		MaxInFlight: 200,
-		Retries: 1,
-		RetryPause: time.Duration(500)*time.Millisecond,
+		Retries:     1,
+		RetryPause:  time.Duration(500) * time.Millisecond,
 	}
 	return client
 }
 
 func (this *JsonClient) setClosed(v bool) {
 	if v {
-        atomic.StoreInt32(&this.shutdown, 1)
-    } else {
-        atomic.StoreInt32(&this.shutdown, 0)
-    }
+		atomic.StoreInt32(&this.shutdown, 1)
+	} else {
+		atomic.StoreInt32(&this.shutdown, 0)
+	}
 }
 
 func (this *JsonClient) Closed() bool {
@@ -216,7 +214,7 @@ func (this *JsonClient) Connect() error {
 	}
 
 	clientPoolCreator := &clientPoolCreator{
-		client : this,
+		client: this,
 	}
 
 	pool, err := NewPool(this.PoolSize, clientPoolCreator)
@@ -235,14 +233,14 @@ func (this *JsonClient) Close() {
 	log.Println("Send exit message")
 }
 
-//returns the connection.  
+//returns the connection.
 // use this rather then access directly from the struct, will
 // make it easier to pool connections if we need.
 // This will attempt to return the next operating connection
 func (this *JsonClient) connection() (*cheshireConn, error) {
 	var err error
-	for x:=0; x < this.Retries; x++ {
-		for i:=0; i < this.PoolSize; i++ {
+	for x := 0; x < this.Retries; x++ {
+		for i := 0; i < this.PoolSize; i++ {
 			c, err := this.pool.Borrow(1 * time.Second)
 			if err != nil {
 				log.Printf("Error getting connection from pool : %s", err)
@@ -260,18 +258,18 @@ func (this *JsonClient) connection() (*cheshireConn, error) {
 		err = fmt.Errorf("Unable to get connection, likely all are busy")
 	}
 	return nil, err
-	
+
 }
 
 func (this *JsonClient) pingLoop() {
 	pingTimer := time.Tick(25 * time.Second)
 	for !this.Closed() {
-		<- pingTimer
-		for i :=0; i< this.PoolSize; i++ {
+		<-pingTimer
+		for i := 0; i < this.PoolSize; i++ {
 			//Do the ping
 			_, err := this.doApiCallSync(cheshire.NewRequest(this.PingUri, "GET"), 10*time.Second)
 			if err != nil {
-				log.Printf("Error in ping %s", err)	
+				log.Printf("Error in ping %s", err)
 			}
 		}
 	}
@@ -286,7 +284,7 @@ func (this *JsonClient) ApiCallSync(req *cheshire.Request, timeout time.Duration
 }
 
 // Does an api call.
-// Transport errors and others will arrive on the channel.  
+// Transport errors and others will arrive on the channel.
 // will return an error immediately if no connection is available.
 
 func (this *JsonClient) ApiCall(req *cheshire.Request, responseChan chan *cheshire.Response, errorChan chan error) error {
@@ -318,7 +316,6 @@ func (this *JsonClient) doApiCallSync(req *cheshire.Request, timeout time.Durati
 	return nil, fmt.Errorf("Impossible error happened, alert NASA")
 }
 
-
 //does the actual call, returning the connection and the internal request
 func (this *JsonClient) doApiCall(req *cheshire.Request, responseChan chan *cheshire.Response, errorChan chan error) (*cheshireRequest, error) {
 	conn, err := this.connection()
@@ -339,9 +336,10 @@ func (this *JsonClient) doApiCall(req *cheshire.Request, responseChan chan *ches
 
 //handles the creation for the pool
 type clientPoolCreator struct {
-	client *JsonClient	
+	client *JsonClient
 }
- //Should create and connect to a new client
+
+//Should create and connect to a new client
 func (this *clientPoolCreator) Create() (*cheshireConn, error) {
 	c, err := newCheshireConn(fmt.Sprintf("%s:%d", this.client.Host, this.client.Port), 20*time.Second)
 	if err != nil {
@@ -352,6 +350,7 @@ func (this *clientPoolCreator) Create() (*cheshireConn, error) {
 	go c.eventLoop()
 	return c, nil
 }
+
 //Should clean up the connection resources
 //implementation should deal with Cleanup possibly being called multiple times
 func (this *clientPoolCreator) Cleanup(conn *cheshireConn) {
