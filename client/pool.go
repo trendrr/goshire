@@ -28,6 +28,7 @@ type Pool struct {
 // Creates a new pool, and initializes the clients.
 // will fail with an error if any of the clients fail
 func NewPool(size int, creator ClientCreator) (*Pool,error) {
+    log.Println("CREATIGN POOL")
     p := &Pool{
         size : size,
         creator : creator,

@@ -9,7 +9,6 @@ import (
 	"log"
 	"net/http"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
 	"bytes"
@@ -145,27 +144,17 @@ type JsonClient struct {
 	Host     string
 	Port     int
 	PingUri  string
-	isClosed bool
-	//The connection
-	//TODO: this should be a pool
-	conn     []*cheshireConn
-	
-	//this channel is alerted when the connection is disconnected.
-	disconnectChan chan *cheshireConn
+	shutdown int32
+	pool *Pool
+	PoolSize int
 	exitChan       chan int
-	connectLock    sync.RWMutex
 
-	//All reconnections happen in this channel
-	reconnectChan chan *cheshireConn
 
 	//The max number of requests that can be waiting for a response.
 	//When max inflight is reached, the client will start
 	//blocking and waiting for room.
 	//connection will eventually close if it waits too long.
 	MaxInFlight int
-
-	// The connection pool size
-	PoolSize int
 
 	// Number of times we should retry to send a request if there is a connection problem
 	// default is 1
@@ -185,40 +174,37 @@ func NewJson(host string, port int) (*JsonClient) {
 	client := &JsonClient{
 		Host:           host,
 		Port:           port,
-		isClosed:       false,
-		disconnectChan: make(chan *cheshireConn),
+		shutdown:       1,
 		exitChan:       make(chan int),
-		reconnectChan:  make(chan *cheshireConn, 50),
 		PingUri:        "/ping",
 		PoolSize:		5,
 		MaxInFlight: 200,
-		conn:		make([]*cheshireConn, 0),
 		Retries: 1,
 		RetryPause: time.Duration(500)*time.Millisecond,
 	}
 	return client
 }
 
-// returns the total # of requests that are currently inflight (i.e. txn in progress)
-// func (this *JsonClient) CurrentInFlight() int {
+func (this *JsonClient) setClosed(v bool) {
+	if v {
+        atomic.StoreInt32(&this.shutdown, 1)
+    } else {
+        atomic.StoreInt32(&this.shutdown, 0)
+    }
+}
 
-
-// 	return len(this.conn.requests)
-// }
+func (this *JsonClient) Closed() bool {
+	return this.shutdown != 0
+}
 
 // Starts the json event loop and initializes one or
 // more connections
 // if a connection already exists it will be closed
 func (this *JsonClient) Connect() error {
-	this.connectLock.Lock()
-	defer this.connectLock.Unlock()
-
-	if len(this.conn) > 0 {
-		//close all the connections.
-		this.Close()
+	if !this.Closed() {
+		return fmt.Errorf("Connect called on connected client")
 	}
-
-	this.isClosed = false
+	this.setClosed(false)
 
 	this.maxInFlightPer = int(this.MaxInFlight / this.PoolSize)
 	if this.maxInFlightPer < 10 {
@@ -229,17 +215,17 @@ func (this *JsonClient) Connect() error {
 		this.maxInFlightPer = 2
 	}
 
-	this.conn = make([]*cheshireConn, this.PoolSize)
-	for i:=0; i < this.PoolSize;i++ {
-		conn, err := this.createConn()
-		if err != nil {
-			return err
-		}
-		conn.poolIndex = i
-		this.conn[i] = conn
+	clientPoolCreator := &clientPoolCreator{
+		client : this,
 	}
 
-	go this.eventLoop()
+	pool, err := NewPool(this.PoolSize, clientPoolCreator)
+	if err != nil {
+		return err
+	}
+	this.pool = pool
+
+	go this.pingLoop()
 	return nil
 }
 
@@ -249,34 +235,26 @@ func (this *JsonClient) Close() {
 	log.Println("Send exit message")
 }
 
-//Creates a new cheshire connection and returns it
-func (this *JsonClient) createConn() (*cheshireConn, error) {
-	c, err := newCheshireConn(fmt.Sprintf("%s:%d", this.Host, this.Port), this.disconnectChan, 20*time.Second)
-	if err != nil {
-		return nil, err
-	}
-	log.Printf("Max Inflight %d, Per %d, Poolsize %d", this.MaxInFlight, this.maxInFlightPer, this.PoolSize)
-	c.maxInFlight = this.maxInFlightPer
-	go c.eventLoop()
-	return c, nil
-}
-
 //returns the connection.  
 // use this rather then access directly from the struct, will
 // make it easier to pool connections if we need.
 // This will attempt to return the next operating connection
 func (this *JsonClient) connection() (*cheshireConn, error) {
 	var err error
-
-	for i:=0; i < this.PoolSize; i++ {
-		conn, err := this.nextConnection()
-		if err != nil {
-			continue
+	for x:=0; x < this.Retries; x++ {
+		for i:=0; i < this.PoolSize; i++ {
+			c, err := this.pool.Borrow(1 * time.Second)
+			if err != nil {
+				log.Printf("Error getting connection from pool : %s", err)
+				continue
+			}
+			if c.inflight() >= this.maxInFlightPer {
+				this.pool.Return(c)
+				continue
+			}
+			return c, nil
 		}
-		if conn.inflight() >= this.maxInFlightPer {
-			continue
-		}
-		return conn, nil
+		time.Sleep(this.RetryPause)
 	}
 	if err == nil {
 		err = fmt.Errorf("Unable to get connection, likely all are busy")
@@ -285,141 +263,25 @@ func (this *JsonClient) connection() (*cheshireConn, error) {
 	
 }
 
-//returns the next connection
-func (this *JsonClient) nextConnection() (*cheshireConn, error) {
-	index := int(atomic.AddUint64(&this.count, uint64(1)) % uint64(this.PoolSize))
-	this.connectLock.RLock()
-	conn := this.conn[index]
-	this.connectLock.RUnlock()
-	if !conn.Connected() {
-		return conn, fmt.Errorf("Not connected")
-	}
-	return conn, nil
-}
-
-//Attempt to close this connection and make a new connection.
-func (this *JsonClient) reconnect(oldconn *cheshireConn) {
-	this.reconnectChan <- oldconn
-}
-
-func (this *JsonClient) reconnectLoop(closeChan chan bool) {
-	//TODO is the closechan necessary?  will it get gc'ed if
-	// the go routine is abandoned?
-
-	for {
-		select {
-		case <- closeChan :
-			log.Println("Closing reconnect loop")
-			return
-		case conn := <-this.reconnectChan :
-			err := this.reconn(conn)
+func (this *JsonClient) pingLoop() {
+	pingTimer := time.Tick(25 * time.Second)
+	for !this.Closed() {
+		<- pingTimer
+		for i :=0; i< this.PoolSize; i++ {
+			//Do the ping
+			_, err := this.doApiCallSync(cheshire.NewRequest(this.PingUri, "GET"), 10*time.Second)
 			if err != nil {
-				log.Printf("Error during reconnect -- %s", err)
+				log.Printf("Error in ping %s", err)	
 			}
 		}
 	}
-}
-
-//The actual reconnect logic.  do not call this directly, it is handled in a 
-// special go routine
-func (this *JsonClient) reconn(oldconn *cheshireConn) (error) {
-	if oldconn.connectedAt.After(time.Now().Add(-5 * time.Second)) {
-
-		log.Printf("Last connection attempted %s NOW is %s", oldconn.connectedAt.Local(), time.Now().Local())
-		//only allow one reconnect attempt per 5 second interval
-		//returning the old connection, because this was likely a concurrent reconnect 
-		// attempt, and perhaps the previous one was successfull
-		log.Println("Skipping reconnect too early")
-		return nil
-	}
-	//update the connect attempt time.
-	oldconn.connectedAt = time.Now()
-
-	log.Println("Closing old")
-	oldconn.Close()
-
-	log.Println("Creating new!")
-	con, err := this.createConn()
-	if err != nil {
-		log.Printf("COUldn't create new %s", err)
-
-		return err
-	}
-	this.connectLock.Lock()
-	defer this.connectLock.Unlock()
-
-	//double check the connection pool.  make certain no leaks
-	if this.conn[oldconn.poolIndex] != oldconn {
-		log.Println("Ack! old connection is not in the pool anymore!")
-		this.conn[oldconn.poolIndex].Close()
-	}
-	this.conn[oldconn.poolIndex] = con
-	
-
-	log.Println("DONE RECONNECT %s", con)
-	return err
-}
-
-func (this *JsonClient) eventLoop() {
-	//client event loop pings, and listens for client disconnects.
-	pingTimer := time.Tick(5 * time.Second)
-
-	reconnectExit := make(chan bool)
-	go this.reconnectLoop(reconnectExit)
-
-	defer log.Println("CLOSED!!!!!!!!")
-	defer func (){reconnectExit <- true}()
-
-	for !this.isClosed {
-		select {
-		case <-this.exitChan:
-			log.Println("Exiting Client")
-			//close all connections
-			for _,conn := range(this.conn) {
-				conn.Close()
-			}
-			this.isClosed = true
-			break
-		case <-pingTimer:
-			//ping all the connections.
-			
-			for _, conn := range(this.conn) {
-				
-				_, err := this.doApiCallSync(conn, cheshire.NewRequest(this.PingUri, "GET"), 10*time.Second)
-				if err != nil {
-					log.Printf("COULDNT PING (%s) Attempting to reconnect", err)
-					this.reconnect(conn)
-				}
-			}
-
-		case conn := <-this.disconnectChan:
-			log.Printf("DISCONNECTED %s:%p, attempting reconnect", this.Host, this.Port)
-			//reconnect
-
-			//attempt a reconnect immediately.  
-			// else will attempt to reconnect at next ping
-			// 
-			this.reconnect(conn)
-		}
-	}
-
 }
 
 // Does a synchronous api call.  times out after the requested timeout.
 // This will automatically set the txn accept to single
 func (this *JsonClient) ApiCallSync(req *cheshire.Request, timeout time.Duration) (*cheshire.Response, error) {
-	conn, err := this.connection()
-	//retry if necessary
-	for i := 0; i < this.Retries && err != nil; i++ {
-		time.Sleep(this.RetryPause)
-		conn, err = this.connection()
-	}
-	if err != nil {
-		return nil, err
-	}
-
 	req.SetTxnAccept("single")
-	response, err := this.doApiCallSync(conn, req, timeout)
+	response, err := this.doApiCallSync(req, timeout)
 	return response, err
 }
 
@@ -428,17 +290,7 @@ func (this *JsonClient) ApiCallSync(req *cheshire.Request, timeout time.Duration
 // will return an error immediately if no connection is available.
 
 func (this *JsonClient) ApiCall(req *cheshire.Request, responseChan chan *cheshire.Response, errorChan chan error) error {
-	conn, err := this.connection()
-	//retry if necessary
-	for i := 0; i < this.Retries && err != nil; i++ {
-		time.Sleep(this.RetryPause)
-		conn, err = this.connection()
-	}
-
-	if err != nil {
-		return err
-	}
-	_, err = this.doApiCall(conn, req, responseChan, errorChan)
+	_, err := this.doApiCall(req, responseChan, errorChan)
 	return err
 }
 
@@ -447,10 +299,10 @@ func (this *JsonClient) CurrentInFlight() int {
 	return 0
 }
 
-func (this *JsonClient) doApiCallSync(conn *cheshireConn, req *cheshire.Request, timeout time.Duration) (*cheshire.Response, error) {
+func (this *JsonClient) doApiCallSync(req *cheshire.Request, timeout time.Duration) (*cheshire.Response, error) {
 	responseChan := make(chan *cheshire.Response)
 	errorChan := make(chan error, 5)
-	_, err := this.doApiCall(conn, req, responseChan, errorChan)
+	_, err := this.doApiCall(req, responseChan, errorChan)
 	if err != nil {
 		return nil, err
 	}
@@ -468,13 +320,40 @@ func (this *JsonClient) doApiCallSync(conn *cheshireConn, req *cheshire.Request,
 
 
 //does the actual call, returning the connection and the internal request
-func (this *JsonClient) doApiCall(conn *cheshireConn, req *cheshire.Request, responseChan chan *cheshire.Response, errorChan chan error) (*cheshireRequest, error) {
-	if conn == nil {
-		return nil, fmt.Errorf("Cannot do api call, conn is nil")
+func (this *JsonClient) doApiCall(req *cheshire.Request, responseChan chan *cheshire.Response, errorChan chan error) (*cheshireRequest, error) {
+	conn, err := this.connection()
+	if err != nil {
+		return nil, err
 	}
 	if req.TxnId() == "" {
 		req.SetTxnId(NewTxnId())
 	}
 	r, err := conn.sendRequest(req, responseChan, errorChan)
+	if err == nil {
+		this.pool.Return(conn)
+	} else {
+		this.pool.ReturnBroken(conn)
+	}
 	return r, err
+}
+
+//handles the creation for the pool
+type clientPoolCreator struct {
+	client *JsonClient	
+}
+ //Should create and connect to a new client
+func (this *clientPoolCreator) Create() (*cheshireConn, error) {
+	c, err := newCheshireConn(fmt.Sprintf("%s:%d", this.client.Host, this.client.Port), 20*time.Second)
+	if err != nil {
+		return nil, err
+	}
+	log.Printf("Max Inflight %d, Per %d, Poolsize %d", this.client.MaxInFlight, this.client.maxInFlightPer, this.client.PoolSize)
+	c.maxInFlight = this.client.maxInFlightPer
+	go c.eventLoop()
+	return c, nil
+}
+//Should clean up the connection resources
+//implementation should deal with Cleanup possibly being called multiple times
+func (this *clientPoolCreator) Cleanup(conn *cheshireConn) {
+
 }
