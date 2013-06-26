@@ -1,5 +1,11 @@
 package client
 
+import(
+    "time"
+    "sync/atomic"
+    "fmt"
+    "log"
+)
 
 type ClientCreator interface {
     
@@ -16,7 +22,7 @@ type Pool struct {
     size int
     clients chan *cheshireConn
     creator ClientCreator
-    shutdown int
+    shutdown int32
 }
 
 // Creates a new pool, and initializes the clients.
@@ -28,7 +34,7 @@ func NewPool(size int, creator ClientCreator) (*Pool,error) {
         clients : make(chan *cheshireConn, size),
         shutdown : 0,
     }
-    for i := 0; i < size; x++ {
+    for i := 0; i < size; i++ {
         conn, err := creator.Create()
         if err != nil {
             p.Close()
@@ -42,11 +48,11 @@ func NewPool(size int, creator ClientCreator) (*Pool,error) {
 
 //Close this pool and clean up all connections
 func (this *Pool) Close() {
-    atomic.StoreInt32(*this.shutdown, 1)
+    atomic.StoreInt32(&this.shutdown, 1)
 
     for {
         select {
-        case c <-this.clients:
+        case c := <-this.clients:
             this.creator.Cleanup(c)
         default:
             //done
@@ -64,7 +70,7 @@ func (this *Pool) Borrow(timeout time.Duration) (*cheshireConn, error) {
     }
 
     select {
-    case c <- this.clients:
+    case c := <- this.clients:
         return c, nil
     case <- time.After(timeout):
         return nil, fmt.Errorf("Timeout trying to checkout from pool")
