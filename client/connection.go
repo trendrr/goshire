@@ -11,32 +11,34 @@ import (
     "bufio"
     "encoding/json"
     "sync"
+    "sync/atomic"
 
 )
 
 // A single connection to a cheshire server. 
 // The connection is considered fail fast
 // should be disconnected and reaped
+
+// This is not threadsafe and should only be used in one routine at a time.
 type cheshireConn struct {
     net.Conn
     addr           string
-    connected      bool  //use accessors only for threadsafety
+    connected      int32 
     readTimeout    time.Duration
     writeTimeout   time.Duration
     incomingChan   chan *cheshire.Response
     outgoingChan   chan *cheshireRequest
     exitChan       chan int
-    disconnectChan chan *cheshireConn
     //if max inflight is reached, we wait on this chan
     inwaitChan chan bool
     
     //map of txnId to request
     requests    map[string]*cheshireRequest
+    requestsLock sync.RWMutex
+
     connectedAt time.Time
     maxInFlight int
-    //the index in the owning pool
-    poolIndex int
-    lock sync.RWMutex
+
 }
 
 //wrap a request so we dont lose track of the result channels
@@ -49,7 +51,7 @@ type cheshireRequest struct {
 
 
 
-func newCheshireConn(addr string, disconnect chan *cheshireConn, writeTimeout time.Duration) (*cheshireConn, error) {
+func newCheshireConn(addr string, writeTimeout time.Duration) (*cheshireConn, error) {
     conn, err := net.DialTimeout("tcp", addr, time.Second)
     if err != nil {
         return nil, err
@@ -65,7 +67,7 @@ func newCheshireConn(addr string, disconnect chan *cheshireConn, writeTimeout ti
 
     nc := &cheshireConn{
         Conn:           conn,
-        connected:      true,
+        connected:      1,
         addr:           addr,
         writeTimeout:   writeTimeout,
         exitChan:       make(chan int),
@@ -73,7 +75,6 @@ func newCheshireConn(addr string, disconnect chan *cheshireConn, writeTimeout ti
         outgoingChan:   make(chan *cheshireRequest, 25),
         //if max inflight is reached, we wait on this chan
         inwaitChan: make(chan bool),
-        disconnectChan: disconnect,
         requests:       make(map[string]*cheshireRequest),
         connectedAt:    time.Now(),
     }
@@ -81,34 +82,34 @@ func newCheshireConn(addr string, disconnect chan *cheshireConn, writeTimeout ti
 }
 
 func (this *cheshireConn) setConnected(v bool) {
-    this.lock.Lock()
-    defer this.lock.Unlock()
-    this.connected = v
+    if v {
+        atomic.StoreInt32(&this.connected, 1)
+    } else {
+        atomic.StoreInt32(&this.connected, 0)
+    }
 }
 
 func (this *cheshireConn) Connected() bool {
-    this.lock.RLock()
-    defer this.lock.RUnlock()
-    return this.connected
+    return this.connected == 1
 }
 
 //returns the current # of requests in flight
 //unsafe
 func (this *cheshireConn) inflight() int {
-    this.lock.RLock()
-    defer this.lock.RUnlock()
+    this.requestsLock.RLock()
+    defer this.requestsLock.RUnlock()
+
     return len(this.requests)
 }
 
 // Sends a new request.
 // this will check the max inflight, and will block for max 20 seconds waiting for the # inflilght to go down.
 // if inflight does not go down it will close the connection and return error.
-// errors are returned, not sent to the errorchan
+// A returned error can be considered a disconnect
 func (this *cheshireConn) sendRequest(request *cheshire.Request, resultChan chan *cheshire.Response, errorChan chan error) (*cheshireRequest, error) {
-
     if this.inflight() > this.maxInFlight {
         
-        log.Printf("Max inflight reached (%d) of (%d), waiting pool index: %d", this.inflight(), this.maxInFlight, this.poolIndex)
+        log.Printf("Max inflight reached (%d) of %d, waiting", this.inflight(), this.maxInFlight)
         //TODO: timeout channel
         select {
         case <- this.inwaitChan :
@@ -188,15 +189,13 @@ func (this *cheshireConn) cleanup() {
         req.errorChan <- err
     }
     log.Println("ended outchan")
-    this.lock.Lock()
+    this.requestsLock.Lock()
+    defer this.requestsLock.Unlock()
+
     for k, v := range this.requests {
         v.errorChan <- err
         delete(this.requests, k)
     }
-    this.lock.Unlock()
-
-    log.Println("Ended request clear")
-    this.disconnectChan <- this
 }
 
 func (this *cheshireConn) eventLoop() {
@@ -208,9 +207,9 @@ func (this *cheshireConn) eventLoop() {
     for this.Connected() {
         select {
         case response := <-this.incomingChan:
-            this.lock.RLock()
+            this.requestsLock.RLock()
             req, ok := this.requests[response.TxnId()]
-            this.lock.RUnlock()
+            this.requestsLock.RUnlock()
             if !ok {
                 log.Printf("Uhh, received response, but had no request %s", response)
                 // for k,_ := range(this.requests) {
@@ -221,15 +220,15 @@ func (this *cheshireConn) eventLoop() {
             req.resultChan <- response
             //remove if txn is finished..
             if response.TxnStatus() == "completed" {
-                this.lock.Lock()
+                this.requestsLock.Lock()
                 delete(this.requests, response.TxnId())
-                this.lock.Unlock()
+                this.requestsLock.Unlock()
             }
         case request := <-this.outgoingChan:
             //add to the request map
-            this.lock.Lock()
+            this.requestsLock.Lock()
             this.requests[request.req.TxnId()] = request
-            this.lock.Unlock()
+            this.requestsLock.Unlock()
 
             //send the request
             this.SetWriteDeadline(time.Now().Add(this.writeTimeout))
