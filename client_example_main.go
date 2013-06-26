@@ -24,7 +24,10 @@ func main() {
 
     client.PoolSize = 10
     client.MaxInFlight = 500
-    client.Connect()
+    err := client.Connect()
+    if err != nil {
+        log.Println(err)
+    }
     defer client.Close()
     //warm it up
     res, err := client.ApiCallSync(cheshire.NewRequest("/ping", "GET"), 10*time.Second)
@@ -43,6 +46,8 @@ func main() {
     errorChan := make(chan error, 200)
     total := 1000000
     start := time.Now().Unix()
+
+    sent := total
     go func() {
 
         for i :=0; i < total; i++ {
@@ -52,7 +57,8 @@ func main() {
             err := client.ApiCall(cheshire.NewRequest("/ping", "GET"), resChan, errorChan)        
             if err != nil {
                 log.Printf("apicall error %s", err)
-            }
+                sent--
+            } 
         }
         }()
     count := 0
@@ -60,10 +66,11 @@ func main() {
     log.Println("Starting select!")
     for {
         select {
-        case <-resChan:
+        case res := <-resChan:
             count++
             if count % 1000 == 0 {
                 log.Printf("Recieved 1000 more, total %d, total time: %d", count, (time.Now().Unix() - start))
+                log.Printf("RESULT %s", res)
             }
 
         case <-errorChan:
@@ -71,7 +78,7 @@ func main() {
             log.Printf("ERROR FROM CHAN %s", err)
         }
 
-        if count == total {
+        if count == sent {
             log.Println("FINISHED!")
             break
         }
