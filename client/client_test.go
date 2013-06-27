@@ -1,9 +1,9 @@
 package client
 
 import (
+	"github.com/trendrr/goshire/cheshire"
 	"log"
 	"testing"
-	"github.com/trendrr/goshire/cheshire"
 	"time"
 )
 
@@ -50,10 +50,10 @@ func TestClient(t *testing.T) {
 	start := time.Now().Unix()
 	go func() {
 
-	    for i :=0; i < total; i++ {
-	        client.ApiCall(cheshire.NewRequest("/ping", "GET"), resChan, errorChan)        
-	    }
-	    }()
+		for i := 0; i < total; i++ {
+			client.ApiCall(cheshire.NewRequest("/ping", "GET"), resChan, errorChan)
+		}
+	}()
 	count := 0
 
 	log.Println("Starting select!")
