@@ -97,7 +97,7 @@ type header struct {
     uri string
     paramEncoding int8
     params *dynmap.DynMap
-    contentParamName string
+    //gzip, ect..  content will always be a byte array
     contentEncoding int8
     contentLength int64
 }
@@ -159,9 +159,23 @@ func handleConnection(conn *BinaryWriter) {
         }
 
         params, err := readByteArray(reader)
-        //TODO PArse the params!
+        if err != nil {
+            log.Print(err)
+            break
+        }
+        //TODO Decode the params!
 
+        err = binary.Read(reader, binary.BigEndian, &h.contentEncoding)
+        if err != nil {
+            log.Print(err)
+            break
+        }
 
+        err = binary.Read(reader, binary.BigEndian, &h.contentLength)
+        if err != nil {
+            log.Print(err)
+            break
+        }
 
         log.Println()
 
