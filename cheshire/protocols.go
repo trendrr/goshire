@@ -10,7 +10,7 @@ import (
 type Protocol interface {
     NewDecoder(io.Reader) Decoder
     WriteResponse(*Response, io.Writer) (int, error)
-    WriteRequest(*Response, io.Writer) (int, error)
+    WriteRequest(*Request, io.Writer) (int, error)
 }
 
 type Decoder interface {
