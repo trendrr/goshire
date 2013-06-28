@@ -128,8 +128,10 @@ func (this *HttpClient) ApiCallSync(req *cheshire.Request, timeout time.Duration
 	}
 
 	//convert to a strest response2
-	var response = &cheshire.Response{*dynmap.NewDynMap()}
-	err = response.UnmarshalJSON(body)
+	mp := dynmap.New()
+	// var response = &cheshire.Response{*dynmap.NewDynMap()}
+	err = mp.UnmarshalJSON(body)
+	response := cheshire.NewResponseDynMap(mp)
 	if err != nil {
 		return nil, err
 	}

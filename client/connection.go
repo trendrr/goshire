@@ -121,7 +121,7 @@ func (this *cheshireConn) sendRequest(request *cheshire.Request, resultChan chan
 		return nil, fmt.Errorf("Not connected")
 	}
 
-	json, err := json.Marshal(request)
+	json, err := request.MarshalJSON()
 	if err != nil {
 		return nil, err
 	}
@@ -153,8 +153,9 @@ func (this *cheshireConn) listener() {
 	log.Printf("Starting Cheshire Connection %s", this.addr)
 	defer func() { this.exitChan <- 1 }()
 	for {
-		res := &cheshire.Response{*dynmap.New()}
-		err := decoder.Decode(res)
+
+		mp := dynmap.New()
+		err := decoder.Decode(mp)
 		if err == io.EOF {
 			log.Print(err)
 			break
@@ -162,6 +163,9 @@ func (this *cheshireConn) listener() {
 			log.Print(err)
 			break
 		}
+
+		res := cheshire.NewResponseDynMap(mp)
+
 		this.incomingChan <- res
 
 		//alert the inwaitchan, non-blocking
