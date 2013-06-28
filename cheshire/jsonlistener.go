@@ -8,6 +8,7 @@ import (
 	"log"
 	"net"
 	"sync"
+	    "github.com/trendrr/goshire/dynmap"
 )
 
 type JsonWriter struct {
@@ -17,7 +18,7 @@ type JsonWriter struct {
 }
 
 func (this *JsonWriter) Write(response *Response) (int, error) {
-	json, err := json.Marshal(response)
+	json, err := response.MarshalJSON()
 	if err != nil {
 		return 0, err
 	}
@@ -47,21 +48,20 @@ func JsonListen(port int, config *ServerConfig) error {
 			// handle error
 			continue
 		}
-		go handleConnection(&JsonWriter{serverConfig: config, conn: conn})
+		go handleJSONConnection(&JsonWriter{serverConfig: config, conn: conn})
 	}
 	return nil
 }
 
-func handleConnection(conn *JsonWriter) {
+func handleJSONConnection(conn *JsonWriter) {
 	defer conn.conn.Close()
 	// log.Print("CONNECT!")
 
 	dec := json.NewDecoder(bufio.NewReader(conn.conn))
 
 	for {
-		var req Request
-		err := dec.Decode(&req)
-
+		mp := dynmap.New()
+		err := dec.Decode(mp)
 		if err == io.EOF {
 			log.Print(err)
 			break
@@ -69,9 +69,10 @@ func handleConnection(conn *JsonWriter) {
 			log.Print(err)
 			break
 		}
+		req := NewRequestDynMap(mp)
 		//request
 		controller := conn.serverConfig.Router.Match(req.Method(), req.Uri())
-		go HandleRequest(&req, conn, controller, conn.serverConfig)
+		go HandleRequest(req, conn, controller, conn.serverConfig)
 	}
 
 	log.Print("DISCONNECT!")
