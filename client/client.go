@@ -166,6 +166,7 @@ type JsonClient struct {
 
 	count          uint64
 	maxInFlightPer int
+	protocol cheshire.Protocol
 }
 
 //Creates a new Json client
@@ -181,6 +182,7 @@ func NewJson(host string, port int) *JsonClient {
 		MaxInFlight: 200,
 		Retries:     1,
 		RetryPause:  time.Duration(500) * time.Millisecond,
+		protocol: cheshire.JSON,
 	}
 	return client
 }
@@ -343,7 +345,7 @@ type clientPoolCreator struct {
 
 //Should create and connect to a new client
 func (this *clientPoolCreator) Create() (*cheshireConn, error) {
-	c, err := newCheshireConn(fmt.Sprintf("%s:%d", this.client.Host, this.client.Port), 20*time.Second)
+	c, err := newCheshireConn(this.client.protocol, fmt.Sprintf("%s:%d", this.client.Host, this.client.Port), 20*time.Second)
 	if err != nil {
 		return nil, err
 	}

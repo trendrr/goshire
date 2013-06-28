@@ -2,10 +2,10 @@ package client
 
 import (
 	"bufio"
-	"encoding/json"
+	// "encoding/json"
 	"fmt"
 	"github.com/trendrr/goshire/cheshire"
-	"github.com/trendrr/goshire/dynmap"
+	// "github.com/trendrr/goshire/dynmap"
 	"io"
 	"log"
 	"net"
@@ -37,17 +37,17 @@ type cheshireConn struct {
 
 	connectedAt time.Time
 	maxInFlight int
+	protocol cheshire.Protocol
 }
 
 //wrap a request so we dont lose track of the result channels
 type cheshireRequest struct {
-	bytes      []byte
 	req        *cheshire.Request
 	resultChan chan *cheshire.Response
 	errorChan  chan error
 }
 
-func newCheshireConn(addr string, writeTimeout time.Duration) (*cheshireConn, error) {
+func newCheshireConn(protocol cheshire.Protocol, addr string, writeTimeout time.Duration) (*cheshireConn, error) {
 	conn, err := net.DialTimeout("tcp", addr, time.Second)
 	if err != nil {
 		return nil, err
@@ -73,6 +73,7 @@ func newCheshireConn(addr string, writeTimeout time.Duration) (*cheshireConn, er
 		inwaitChan:  make(chan bool),
 		requests:    make(map[string]*cheshireRequest),
 		connectedAt: time.Now(),
+		protocol: protocol,
 	}
 	return nc, nil
 }
@@ -121,14 +122,8 @@ func (this *cheshireConn) sendRequest(request *cheshire.Request, resultChan chan
 		return nil, fmt.Errorf("Not connected")
 	}
 
-	json, err := request.MarshalJSON()
-	if err != nil {
-		return nil, err
-	}
-
 	req := &cheshireRequest{
 		req:        request,
-		bytes:      json,
 		resultChan: resultChan,
 		errorChan:  errorChan,
 	}
@@ -149,13 +144,11 @@ func (this *cheshireConn) String() string {
 
 // loop that listens for incoming messages.
 func (this *cheshireConn) listener() {
-	decoder := json.NewDecoder(bufio.NewReader(this.Conn))
+	decoder := this.protocol.NewDecoder(bufio.NewReader(this.Conn))
 	log.Printf("Starting Cheshire Connection %s", this.addr)
 	defer func() { this.exitChan <- 1 }()
 	for {
-
-		mp := dynmap.New()
-		err := decoder.Decode(mp)
+		res, err := decoder.DecodeResponse()
 		if err == io.EOF {
 			log.Print(err)
 			break
@@ -163,9 +156,6 @@ func (this *cheshireConn) listener() {
 			log.Print(err)
 			break
 		}
-
-		res := cheshire.NewResponseDynMap(mp)
-
 		this.incomingChan <- res
 
 		//alert the inwaitchan, non-blocking
@@ -231,7 +221,8 @@ func (this *cheshireConn) eventLoop() {
 
 			//send the request
 			this.SetWriteDeadline(time.Now().Add(this.writeTimeout))
-			_, err := writer.Write(request.bytes)
+
+			_, err := this.protocol.WriteRequest(request.req, writer)
 			if err != nil {
 				//TODO: uhh, do something..
 				log.Print(err)
