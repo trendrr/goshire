@@ -2,13 +2,11 @@ package cheshire
 
 import (
 	"bufio"
-	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"net"
 	"sync"
-	    "github.com/trendrr/goshire/dynmap"
 )
 
 type JsonWriter struct {
@@ -18,13 +16,9 @@ type JsonWriter struct {
 }
 
 func (this *JsonWriter) Write(response *Response) (int, error) {
-	json, err := response.MarshalJSON()
-	if err != nil {
-		return 0, err
-	}
 	defer this.writerLock.Unlock()
 	this.writerLock.Lock()
-	bytes, err := this.conn.Write(json)
+	bytes, err := JSON.WriteResponse(response, this.conn)
 	return bytes, err
 }
 
@@ -57,11 +51,11 @@ func handleJSONConnection(conn *JsonWriter) {
 	defer conn.conn.Close()
 	// log.Print("CONNECT!")
 
-	dec := json.NewDecoder(bufio.NewReader(conn.conn))
-
+	// dec := json.NewDecoder(bufio.NewReader(conn.conn))
+	dec := JSON.NewDecoder(bufio.NewReader(conn.conn))
 	for {
-		mp := dynmap.New()
-		err := dec.Decode(mp)
+		req, err := dec.DecodeRequest()
+
 		if err == io.EOF {
 			log.Print(err)
 			break
@@ -69,8 +63,6 @@ func handleJSONConnection(conn *JsonWriter) {
 			log.Print(err)
 			break
 		}
-		req := NewRequestDynMap(mp)
-		//request
 		controller := conn.serverConfig.Router.Match(req.Method(), req.Uri())
 		go HandleRequest(req, conn, controller, conn.serverConfig)
 	}
