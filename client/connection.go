@@ -53,13 +53,10 @@ func newCheshireConn(protocol cheshire.Protocol, addr string, writeTimeout time.
 		return nil, err
 	}
 
-	//this doesnt work
-	// if c, ok := conn.(net.TCPConn); ok {
-	//     err = c.SetKeepAlive(true)
-	//     if err != nil {
-	//         return nil, err
-	//     }
-	// }
+	err = protocol.WriteHello(conn)
+	if err != nil {
+		return nil, err
+	}
 
 	nc := &cheshireConn{
 		Conn:         conn,

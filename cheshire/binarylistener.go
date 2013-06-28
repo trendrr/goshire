@@ -5,7 +5,6 @@ import (
     "bufio"
     "encoding/binary"
     "fmt"
-    "io"
     "log"
     "net"
     "sync"
@@ -55,31 +54,8 @@ func BinaryListen(port int, config *ServerConfig) error {
     return nil
 }
 
-// Reads a length prefixed byte array
-// it assumes the first 
-func readByteArray(reader io.Reader) ([]byte, error) {
-    length := int16(0)
-    err := binary.Read(reader, binary.BigEndian, &length)
-    if err != nil {
-        return nil, err
-    }
-
-    bytes := make([]byte, length)
-    _, err = io.ReadAtLeast(reader, bytes, int(length))
-    return bytes, err
-}
-
-//Reads a length prefixed utf8 string 
-func readString(reader io.Reader) (string, error) {
-    b, err := readByteArray(reader)
-    if err != nil {
-        return "", err
-    }
-    return string(b), nil
-}
 
 type header struct {
-    headerLength int32
     txnId int64
     txnAccept int8
     method int8
@@ -110,12 +86,7 @@ func handleConnection(conn *BinaryWriter) {
     for {
 
         h := &header{}
-        err = binary.Read(reader, binary.BigEndian, &h.headerLength)
-        if err != nil {
-            log.Print(err)
-            break
-        }
-
+        
         err = binary.Read(reader, binary.BigEndian, &h.txnId)
         if err != nil {
             log.Print(err)

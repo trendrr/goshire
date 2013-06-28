@@ -9,11 +9,18 @@ import (
 
 type Protocol interface {
     NewDecoder(io.Reader) Decoder
+    //Say hello on first connection (bin only)
+    WriteHello(io.Writer) error
     WriteResponse(*Response, io.Writer) (int, error)
     WriteRequest(*Request, io.Writer) (int, error)
+    Type() string
+
 }
 
 type Decoder interface {
+    //decode the initial hello (bin only)
+    DecodeHello() error
+
     //Decode the next response from the reader
     DecodeResponse() (*Response, error)
 
@@ -22,12 +29,19 @@ type Decoder interface {
 }
 
 
+
+///////////////////////
+// The JSON protocol implementation
+///////////////////////
 type JSONProtocol struct {   
 
 }
 
 var JSON = &JSONProtocol{}
 
+func (this *JSONProtocol) Type() string {
+    return "json"
+}
 
 func (this *JSONProtocol) NewDecoder(reader io.Reader) Decoder {
     dec := &JSONDecoder{
@@ -35,6 +49,11 @@ func (this *JSONProtocol) NewDecoder(reader io.Reader) Decoder {
     } 
     return dec
 }
+
+func (this *JSONProtocol) WriteHello(writer io.Writer) error {
+    return nil
+}
+
 func (this *JSONProtocol) WriteResponse(response *Response, writer io.Writer) (int, error) {
     json, err := response.MarshalJSON()
     if err != nil {
@@ -54,6 +73,10 @@ func (this *JSONProtocol) WriteRequest(request *Request, writer io.Writer) (int,
 
 type JSONDecoder struct {
     dec *json.Decoder
+}
+
+func (this *JSONDecoder) DecodeHello() error {
+    return nil
 }
 
 func (this *JSONDecoder) DecodeResponse() (*Response, error) {

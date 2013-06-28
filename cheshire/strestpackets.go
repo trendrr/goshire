@@ -12,6 +12,14 @@ import (
 // what Strest protocol version we are using.
 const StrestVersion = float32(2)
 
+var strestId int64 = int64(0)
+
+//create a new unique strest txn id
+func NewTxnId() string {
+    id := atomic.AddInt64(&strestId, int64(1))
+    return fmt.Sprintf("%d", id)
+}
+
 // Standard STREST request.
 // See protocol spec https://github.com/trendrr/strest-server/wiki/STREST-Protocol-Spec
 type Request struct {

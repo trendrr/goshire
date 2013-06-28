@@ -14,13 +14,7 @@ import (
 	"time"
 )
 
-var strestId int64 = int64(0)
 
-//create a new unique strest txn id
-func NewTxnId() string {
-	id := atomic.AddInt64(&strestId, int64(1))
-	return fmt.Sprintf("go%d", id)
-}
 
 type Client interface {
 	// Does a synchronous api call.  times out after the requested timeout.
@@ -250,13 +244,11 @@ func (this *JsonClient) connection() (*cheshireConn, error) {
 				log.Printf("Error getting connection from pool : %s", err)
 				continue
 			}
-			if c.inflight() >= this.maxInFlightPer {
-				this.pool.Return(c)
-				continue
-			}
 			return c, nil
 		}
-		time.Sleep(this.RetryPause)
+		if x < this.Retries {
+			time.Sleep(this.RetryPause)	
+		}
 	}
 	if err == nil {
 		err = fmt.Errorf("Unable to get connection, likely all are busy")
@@ -327,7 +319,7 @@ func (this *JsonClient) doApiCall(req *cheshire.Request, responseChan chan *ches
 		return nil, err
 	}
 	if req.TxnId() == "" {
-		req.SetTxnId(NewTxnId())
+		req.SetTxnId(cheshire.NewTxnId())
 	}
 	r, err := conn.sendRequest(req, responseChan, errorChan)
 	if err == nil {
