@@ -6,6 +6,7 @@ import (
     "fmt"
     "bytes"
     "unicode/utf8"
+    "sync/atomic"
     // "log"
 )
 
@@ -30,6 +31,7 @@ type Request struct {
     uri string
     method string
     params *dynmap.DynMap
+    contentEncoding string
     content []byte
 }
 
@@ -75,6 +77,32 @@ func (this *Request) ToDynMap() *dynmap.DynMap {
     request.PutWithDot("strest.method", this.method)
     request.PutWithDot("strest.txn.accept", this.txnAccept)
     return request
+}
+
+
+
+func (this *Request) SetContent(contentEncoding string, content []byte) {
+    this.contentEncoding = contentEncoding
+    this.content = content
+}
+
+func (this *Request) ContentIsSet() bool {
+    return len(this.contentEncoding) != 0
+}
+
+//returns the current content encoding, 
+func (this *Request) ContentEncoding() (string, bool) {
+    if !this.ContentIsSet() {
+        return this.contentEncoding, false
+    }
+    return this.contentEncoding, true
+}
+
+func (this *Request) Content() ([]byte, bool) {
+    if !this.ContentIsSet() {
+        return this.content, false
+    }
+    return this.content, true
 }
 
 func (this *Request) Method() string {
@@ -190,6 +218,30 @@ func NewResponseDynMap(mp *dynmap.DynMap) *Response {
         statusMessage : status.MustString("status.message", "OK"),
     }
     return response
+}
+
+func (this *Response) SetContent(contentEncoding string, content []byte) {
+    this.contentEncoding = contentEncoding
+    this.content = content
+}
+
+func (this *Response) ContentIsSet() bool {
+    return len(this.contentEncoding) != 0
+}
+
+//returns the current content encoding, 
+func (this *Response) ContentEncoding() (string, bool) {
+    if !this.ContentIsSet() {
+        return this.contentEncoding, false
+    }
+    return this.contentEncoding, true
+}
+
+func (this *Response) Content() ([]byte, bool) {
+    if !this.ContentIsSet() {
+        return this.content, false
+    }
+    return this.content, true
 }
 
 func (this *Response) TxnId() string {

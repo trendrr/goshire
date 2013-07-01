@@ -3,12 +3,12 @@ package cheshire
 
 import (
     "bufio"
-    "encoding/binary"
     "fmt"
     "log"
     "net"
     "sync"
-        "github.com/trendrr/goshire/dynmap"
+    "io"
+        // 
 )
 
 type BinaryWriter struct {
@@ -18,19 +18,14 @@ type BinaryWriter struct {
 }
 
 func (this *BinaryWriter) Write(response *Response) (int, error) {
-    return 0, nil
-    // json, err := json.Marshal(response)
-    // if err != nil {
-    //     return 0, err
-    // }
-    // defer this.writerLock.Unlock()
-    // this.writerLock.Lock()
-    // bytes, err := this.conn.Write(json)
-    // return bytes, err
+    defer this.writerLock.Unlock()
+    this.writerLock.Lock()
+    bytes, err := BIN.WriteResponse(response, this.conn)
+    return bytes, err
 }
 
 func (this *BinaryWriter) Type() string {
-    return "bin"
+    return BIN.Type()
 }
 
 func BinaryListen(port int, config *ServerConfig) error {
@@ -55,102 +50,24 @@ func BinaryListen(port int, config *ServerConfig) error {
 }
 
 
-type header struct {
-    txnId int64
-    txnAccept int8
-    method int8
-    uri string
-    paramEncoding int8
-    params *dynmap.DynMap
-    //gzip, ect..  content will always be a byte array
-    contentEncoding int8
-    contentLength int64
-}
-
 func handleConnection(conn *BinaryWriter) {
     defer conn.conn.Close()
     // log.Print("CONNECT!")
 
-    reader := bufio.NewReader(conn.conn)
-
-    //read the hello
-    hello, err := readString(reader)
-    if err != nil {
-        log.Print(err)
-        //TODO: Send bad hello.
-        return
-    }
-    log.Println(hello)
-
+    decoder := BIN.NewDecoder(bufio.NewReader(conn.conn))
 
     for {
-
-        h := &header{}
-        
-        err = binary.Read(reader, binary.BigEndian, &h.txnId)
-        if err != nil {
+        req, err := decoder.DecodeRequest()
+        if err == io.EOF {
+            log.Print(err)
+            break
+        } else if err != nil {
             log.Print(err)
             break
         }
-
-        err = binary.Read(reader, binary.BigEndian, &h.txnId)
-        if err != nil {
-            log.Print(err)
-            break
-        }
-
-        err = binary.Read(reader, binary.BigEndian, &h.method)
-        if err != nil {
-            log.Print(err)
-            break
-        }
-
-        h.uri, err = readString(reader)
-        if err != nil {
-            log.Print(err)
-            break
-        }
-
-        err = binary.Read(reader, binary.BigEndian, &h.paramEncoding)
-        if err != nil {
-            log.Print(err)
-            break
-        }
-
-        params, err := readByteArray(reader)
-        if err != nil {
-            log.Print(err)
-            break
-        }
-        //TODO Decode the params!
-        log.Println(params)
-
-        
-        err = binary.Read(reader, binary.BigEndian, &h.contentEncoding)
-        if err != nil {
-            log.Print(err)
-            break
-        }
-
-        err = binary.Read(reader, binary.BigEndian, &h.contentLength)
-        if err != nil {
-            log.Print(err)
-            break
-        }
-        log.Println(h)
-        // var req Request
-        // err = dec.Decode(&req)
-
-        // if err == io.EOF {
-        //     log.Print(err)
-        //     break
-        // } else if err != nil {
-        //     log.Print(err)
-        //     break
-        // }
         // //request
-        // controller := conn.serverConfig.Router.Match(req.Method(), req.Uri())
-        // go HandleRequest(&req, conn, controller, conn.serverConfig)
+        controller := conn.serverConfig.Router.Match(req.Method(), req.Uri())
+        go HandleRequest(req, conn, controller, conn.serverConfig)
     }
 
     log.Print("DISCONNECT!")

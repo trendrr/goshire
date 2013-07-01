@@ -176,6 +176,15 @@ func (this *Bootstrap) Start() {
 		}
 	}
 
+	if this.Conf.Exists("bin.port") {
+		port, ok := this.Conf.GetInt("bin.port")
+		if !ok {
+			log.Println("ERROR: Couldn't start binary listener")
+		} else {
+			go BinaryListen(port, this.Conf)
+		}	
+	}
+
 	//this just makes the current thread sleep.  kinda stupid currently.
 	//but we should update to get messages from the listeners, like when a listener quites
 	channel := make(chan string)

@@ -4,6 +4,7 @@ import (
     "encoding/json"
     "io"
             "github.com/trendrr/goshire/dynmap"
+    // "log"
 )
 
 
