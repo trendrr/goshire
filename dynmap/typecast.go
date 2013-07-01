@@ -46,7 +46,7 @@ func ToInt(value interface{}) (int, error) {
 func ToInt64(value interface{}) (i int64, err error) {
 	switch v := value.(type) {
 	case string:
-		i, err := strconv.ParseInt(v, 0, 64)
+		i, err := strconv.ParseInt(strings.TrimSpace(v), 0, 64)
 		return i, err
 	case int:
 		return int64(v), nil
