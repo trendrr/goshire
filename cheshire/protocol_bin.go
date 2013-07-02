@@ -175,11 +175,25 @@ func (this *BinDecoder) DecodeRequest() (*Request, error) {
         return nil, err
     }
 
+    //sharding..
+    partition := int16(0)
+    err = binary.Read(this.reader, binary.BigEndian, &partition)
+    if err != nil {
+        return nil, err
+    }
+
+    shardkey, err := readString(this.reader)
+    if err != nil {
+        return nil, err
+    }
+
+    //txn id
     txnId, err := readString(this.reader)
     if err != nil {
         return nil, err
     }
 
+    //txn accept
     txnAccept := int8(0)
     err = binary.Read(this.reader, binary.BigEndian, &txnAccept)
     if err != nil {
@@ -189,6 +203,7 @@ func (this *BinDecoder) DecodeRequest() (*Request, error) {
         return nil, fmt.Errorf("TxnAccept too large %d", txnAccept)
     }
 
+    //method
     method := int8(0)
     err = binary.Read(this.reader, binary.BigEndian, &method)
     if err != nil {
@@ -198,11 +213,13 @@ func (this *BinDecoder) DecodeRequest() (*Request, error) {
         return nil, fmt.Errorf("Method too large %d", method)
     }
 
+    //uri
     uri, err := readString(this.reader)
     if err != nil {
         return nil, err
     }
 
+    //params
     paramEncoding := int8(0)
     err = binary.Read(this.reader, binary.BigEndian, &paramEncoding)
     if err != nil {
@@ -220,7 +237,8 @@ func (this *BinDecoder) DecodeRequest() (*Request, error) {
     if err != nil {
         return nil, err
     }
-    // log.Println(params)
+    
+    //content
     contentEncoding := int8(0)
     err = binary.Read(this.reader, binary.BigEndian, &contentEncoding)
     if err != nil {
@@ -255,11 +273,12 @@ func (this *BinDecoder) DecodeRequest() (*Request, error) {
         params : params,
         contentEncoding : CONTENT_ENCODING[int(contentEncoding)],
         content : content,
+        Shard : ShardRequest{
+            Partition : int(partition),
+            Key : shardkey,
+        },
     }
-
     return request, nil
-
-
 }
 
 func ParseParams(paramEncoding int8, params []byte) (*dynmap.DynMap, error) {
@@ -382,19 +401,33 @@ func (this *BinProtocol) WriteRequest(request *Request, writer io.Writer) (int, 
     }
 
     headerLength := 
-        2 + //txnId length
-        len(request.TxnId()) +
+        2 + //partition
+        2 + len(request.Shard.Key) +//shard key length
+        2 + len(request.TxnId()) + //txnId
         1 + //txn accept
         1 + //method
-        2 + //uri length
-        len(request.Uri()) +
+        2 + len(request.Uri()) +//uri length
         1 + //param encoding
-        len(params) +
+        2 + len(params) + //params
         2 + //content encoding
         4 //content lenght
 
     //write the header length
     err = binary.Write(writer, binary.BigEndian, int32(headerLength))
+    if err != nil {
+        return 0, err
+    }
+
+    //sharding
+    err = binary.Write(writer, binary.BigEndian, int16(request.Shard.Partition))
+    if err != nil {
+        return 0, err
+    }
+    _, err = writeString(writer, request.Shard.Key)
+    if err != nil {
+        return 0, err
+    }
+
 
     //txn id
     _, err = writeString(writer, request.TxnId())

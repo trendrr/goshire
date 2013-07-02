@@ -29,7 +29,7 @@ The protocol is async (same as the json protocol), so clients should always list
 ```
 [header_length (int32)]
 [partition (int16)]
-[length][partition key (string)]
+[length][shard key (string)]
 [length][txn_id (string)]
 [txn_accept(int8)]
 [method(int8)]
@@ -39,7 +39,7 @@ The protocol is async (same as the json protocol), so clients should always list
 [content_encoding (int8)]
 [content_length (int32)][content (array)]
 ```
- -- Note the partition key and partition sections are only used for goshire-shard router requests. Other requests should zero those fields
+ -- Note the shard key and partition sections are only used for goshire-shard router requests. Other requests should zero those fields
 
 
 ### RESPONSE

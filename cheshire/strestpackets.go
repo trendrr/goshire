@@ -33,6 +33,12 @@ type Request struct {
     params *dynmap.DynMap
     contentEncoding string
     content []byte
+    Shard ShardRequest
+}
+
+type ShardRequest struct {
+    Partition int
+    Key string
 }
 
 // Makes it simple to create a new response from
