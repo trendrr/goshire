@@ -14,13 +14,16 @@ import (
 type BinaryWriter struct {
     serverConfig *ServerConfig
     conn         net.Conn
+    writer  *bufio.Writer
     writerLock   sync.Mutex
 }
 
 func (this *BinaryWriter) Write(response *Response) (int, error) {
     defer this.writerLock.Unlock()
     this.writerLock.Lock()
-    bytes, err := BIN.WriteResponse(response, this.conn)
+    // log.Printf("Write response %s", response)
+    bytes, err := BIN.WriteResponse(response, this.writer)
+    this.writer.Flush()
     return bytes, err
 }
 
@@ -44,7 +47,13 @@ func BinaryListen(port int, config *ServerConfig) error {
             // handle error
             continue
         }
-        go handleConnection(&BinaryWriter{serverConfig: config, conn: conn})
+        binwriter := &BinaryWriter{
+            serverConfig: config, 
+            conn: conn,
+            writer: bufio.NewWriter(conn),
+        }
+
+        go handleConnection(binwriter)
     }
     return nil
 }
@@ -55,7 +64,11 @@ func handleConnection(conn *BinaryWriter) {
     // log.Print("CONNECT!")
 
     decoder := BIN.NewDecoder(bufio.NewReader(conn.conn))
-
+    err := decoder.DecodeHello()
+    if err != nil {
+        log.Print(err)
+        return
+    }
     for {
         req, err := decoder.DecodeRequest()
         if err == io.EOF {
@@ -65,6 +78,7 @@ func handleConnection(conn *BinaryWriter) {
             log.Print(err)
             break
         }
+        // log.Printf("GOT REQUEST %s", req)
         // //request
         controller := conn.serverConfig.Router.Match(req.Method(), req.Uri())
         go HandleRequest(req, conn, controller, conn.serverConfig)

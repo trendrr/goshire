@@ -187,7 +187,7 @@ func (this *cheshireConn) cleanup() {
 func (this *cheshireConn) eventLoop() {
 	go this.listener()
 
-	writer := bufio.NewWriter(this.Conn)
+	// writer := bufio.NewWriter(this.Conn)
 
 	defer this.cleanup()
 	for this.Connected() {
@@ -219,13 +219,13 @@ func (this *cheshireConn) eventLoop() {
 			//send the request
 			this.SetWriteDeadline(time.Now().Add(this.writeTimeout))
 
-			_, err := this.protocol.WriteRequest(request.req, writer)
+			_, err := this.protocol.WriteRequest(request.req, this.Conn)
 			if err != nil {
 				//TODO: uhh, do something..
 				log.Print(err)
 				continue
 			}
-			writer.Flush()
+			// writer.Flush()
 
 		case <-this.exitChan:
 			this.setConnected(false)

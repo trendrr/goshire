@@ -181,6 +181,15 @@ func NewJson(host string, port int) *JsonClient {
 	return client
 }
 
+
+//Creates a new binary
+// Remember to call client.Connect
+func NewBin(host string, port int) *JsonClient {
+	client := NewJson(host, port)
+	client.protocol = cheshire.BIN
+	return client
+}
+
 func (this *JsonClient) setClosed(v bool) {
 	if v {
 		atomic.StoreInt32(&this.shutdown, 1)
