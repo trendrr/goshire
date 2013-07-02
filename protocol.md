@@ -23,19 +23,24 @@ Clients should send this packet on initial connection.  No response will be sent
 After hello is sent, then the client is free to start sending requests, and recieving responses.
 The protocol is async (same as the json protocol), so clients should always listen for new responses.  There are only 2 packet types: REQUEST and RESPONSE.  
 
+
 ### REQUEST
 
 ```
 [header_length (int32)]
+[partition (int16)]
+[length][partition key (string)]
 [length][txn_id (string)]
 [txn_accept(int8)]
 [method(int8)]
 [length][uri (string)]
 [param_encoding (int8)]
 [params (array)]
-[content_encoding (int16)]
+[content_encoding (int8)]
 [content_length (int32)][content (array)]
 ```
+ -- Note the partition key and partition sections are only used for goshire-shard router requests. Other requests should zero those fields
+
 
 ### RESPONSE
 
@@ -45,6 +50,6 @@ The protocol is async (same as the json protocol), so clients should always list
 [txn_status(int8)]
 [status (int16)]
 [length][status_message (string)]
-[content_encoding (int16)]
+[content_encoding (int8)]
 [content_length (int32)][content (array)]
 ```
