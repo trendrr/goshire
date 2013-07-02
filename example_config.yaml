@@ -13,4 +13,5 @@ http:
 json:
    port: 8009
 
-
+bin:
+   port: 8011   
