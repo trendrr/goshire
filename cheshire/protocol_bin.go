@@ -167,12 +167,16 @@ func (this *BinDecoder) DecodeResponse() (*Response, error) {
     return response, nil
 }
 
-    //decode the next request from the reader
-func (this *BinDecoder) DecodeRequest() (*Request, error) {
-    headerLength := int32(0) 
-    err := binary.Read(this.reader, binary.BigEndian, &headerLength)
+// read a shard request from the socket.
+func (this *BinDecoder) DecodeShardRequest() (*ShardRequest, error) {
+    shardHeaderLength := int32(0)
+    err := binary.Read(this.reader, binary.BigEndian, &shardHeaderLength)
     if err != nil {
         return nil, err
+    }
+
+    if shardHeaderLength == 0 {
+        return nil, nil
     }
 
     //sharding..
@@ -183,6 +187,42 @@ func (this *BinDecoder) DecodeRequest() (*Request, error) {
     }
 
     shardkey, err := readString(this.reader)
+    if err != nil {
+        return nil, err
+    }
+
+    revision := int64(0)
+    err = binary.Read(this.reader, binary.BigEndian, &revision)
+    if err != nil {
+        return nil, err
+    }
+
+
+    servicename, err := readString(this.reader)
+    if err != nil {
+        return nil, err
+    }
+
+    s := &ShardRequest{
+        Partition : int(partition),
+        Key : shardkey,
+        Revision : revision,
+        Service : servicename,
+    }
+
+    return s, nil
+}
+
+//decode the next request from the reader
+func (this *BinDecoder) DecodeRequest() (*Request, error) {
+    headerLength := int32(0) 
+    err := binary.Read(this.reader, binary.BigEndian, &headerLength)
+    if err != nil {
+        return nil, err
+    }
+
+    //shard header
+    shard, err := this.DecodeShardRequest()
     if err != nil {
         return nil, err
     }
@@ -273,10 +313,7 @@ func (this *BinDecoder) DecodeRequest() (*Request, error) {
         params : params,
         contentEncoding : CONTENT_ENCODING[int(contentEncoding)],
         content : content,
-        Shard : ShardRequest{
-            Partition : int(partition),
-            Key : shardkey,
-        },
+        Shard : shard,
     }
     return request, nil
 }
@@ -322,6 +359,50 @@ func (this *BinProtocol) NewDecoder(reader io.Reader) Decoder {
     } 
     return dec
 }
+
+//measures the header length of the shard request
+func (this *BinProtocol) ShardRequestLength(s *ShardRequest) int32 {
+    if s == nil {
+        return int32(0)
+    }
+
+
+    length := 
+        2 + //partition
+        2 + len(s.Key) +
+        8 + //router table revision
+        2 + len(s.Service) //service name
+    return int32(length)
+}
+
+//write out the shard request.
+//doesn NOT include the shardheader length
+func (this *BinProtocol) WriteShardRequest(s *ShardRequest, writer io.Writer) error {
+    if s == nil {
+        return nil
+    }
+
+    err := binary.Write(writer, binary.BigEndian, int16(s.Partition))
+    if err != nil {
+        return err
+    }
+    _, err = writeString(writer, s.Key)
+    if err != nil {
+        return err
+    }
+    
+    err = binary.Write(writer, binary.BigEndian, s.Revision)
+    if err != nil {
+        return err
+    }
+
+    _, err = writeString(writer, s.Service)
+    if err != nil {
+        return err
+    }
+    return nil
+}
+
 func (this *BinProtocol) WriteResponse(response *Response, writer io.Writer) (int, error) {
     headerLength :=
         2 + //txnId length
@@ -400,9 +481,12 @@ func (this *BinProtocol) WriteRequest(request *Request, writer io.Writer) (int, 
         return 0, err
     }
 
+    shardHeaderLength := this.ShardRequestLength(request.Shard) 
+
     headerLength := 
         2 + //partition
-        2 + len(request.Shard.Key) +//shard key length
+        4 + //shardHeaderLength
+        int(shardHeaderLength) + //shard header
         2 + len(request.TxnId()) + //txnId
         1 + //txn accept
         1 + //method
@@ -419,15 +503,14 @@ func (this *BinProtocol) WriteRequest(request *Request, writer io.Writer) (int, 
     }
 
     //sharding
-    err = binary.Write(writer, binary.BigEndian, int16(request.Shard.Partition))
+    err = binary.Write(writer, binary.BigEndian, shardHeaderLength)
     if err != nil {
         return 0, err
     }
-    _, err = writeString(writer, request.Shard.Key)
+    err = this.WriteShardRequest(request.Shard, writer)
     if err != nil {
         return 0, err
     }
-
 
     //txn id
     _, err = writeString(writer, request.TxnId())
