@@ -197,17 +197,10 @@ func (this *BinDecoder) DecodeShardRequest() (*ShardRequest, error) {
         return nil, err
     }
 
-
-    servicename, err := readString(this.reader)
-    if err != nil {
-        return nil, err
-    }
-
     s := &ShardRequest{
         Partition : int(partition),
         Key : shardkey,
         Revision : revision,
-        Service : servicename,
     }
 
     return s, nil
@@ -370,8 +363,8 @@ func (this *BinProtocol) ShardRequestLength(s *ShardRequest) int32 {
     length := 
         2 + //partition
         2 + len(s.Key) +
-        8 + //router table revision
-        2 + len(s.Service) //service name
+        8 //router table revision
+
     return int32(length)
 }
 
@@ -396,10 +389,6 @@ func (this *BinProtocol) WriteShardRequest(s *ShardRequest, writer io.Writer) er
         return err
     }
 
-    _, err = writeString(writer, s.Service)
-    if err != nil {
-        return err
-    }
     return nil
 }
 

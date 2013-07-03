@@ -60,6 +60,7 @@ func (this *JSONProtocol) WriteResponse(response *Response, writer io.Writer) (i
     if err != nil {
         return 0, err
     }
+    // log.Printf("JSON %s", string(json))
     bytes, err := writer.Write(json)
     return bytes, err
 }

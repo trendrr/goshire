@@ -40,7 +40,6 @@ type ShardRequest struct {
     Partition int
     Key string
     Revision int64
-    Service string
 }
 
 // Makes it simple to create a new response from
@@ -305,18 +304,23 @@ func (this *Response) MarshalJSON() ([]byte, error) {
     if err != nil {
         return bytes, err
     }
+    comma := ","
+    if len(this.Map) == 0 {
+        comma = ""
+    }
 
     msg, err := JSONEncodeString(this.StatusMessage())
     if err != nil {
         return nil, err 
     }
     json := fmt.Sprintf(
-        "{ \"status\": {\"code\": %d, \"message\" : %s }, \"strest\" : {\"txn\":{\"id\":\"%s\",\"status\":\"%s\"},\"v\":%f}, %s",
+        "{ \"status\": {\"code\": %d, \"message\" : %s }, \"strest\" : {\"txn\":{\"id\":\"%s\",\"status\":\"%s\"},\"v\":%f}%s %s",
         this.StatusCode(),
         msg,
         this.TxnId(),
         this.TxnStatus(),
         this.StrestVersion(),
+        comma,
         string(bytes[1:]), //skip the first byte as it is the '{'
     )
 
