@@ -17,7 +17,17 @@ Request Format
 Clients should send this packet on initial connection.  No response will be sent from the server.  Server will disconnect without a proper hello
 
 ```
-[length][version(string)][space][useragent(string)]
+[length][json hello (string)]
+```
+
+The hello json package should look like the following:
+
+```
+{
+    "v" : 2.0 //the protocol version (required)
+    "useragent" : //the useragent (required)
+    "service" : //the service (if used to connect to a shard router only)
+}
 ```
 
 After hello is sent, then the client is free to start sending requests, and recieving responses.
@@ -33,7 +43,6 @@ The protocol is async (same as the json protocol), so clients should always list
 [partition (int16)]
 [length][shard key (string)]
 [router table revision (int64)]
-[length][service name (string)]
 
 [length][txn_id (string)]
 [txn_accept(int8)]
