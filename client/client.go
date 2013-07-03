@@ -346,12 +346,12 @@ type clientPoolCreator struct {
 
 //Should create and connect to a new client
 func (this *clientPoolCreator) Create() (*cheshireConn, error) {
-	c, err := newCheshireConn(this.client.protocol, fmt.Sprintf("%s:%d", this.client.Host, this.client.Port), 20*time.Second)
+	log.Printf("Max Inflight %d, Per %d, Poolsize %d", this.client.MaxInFlight, this.client.maxInFlightPer, this.client.PoolSize)
+	c, err := newCheshireConn(this.client.protocol, fmt.Sprintf("%s:%d", this.client.Host, this.client.Port), 20*time.Second, this.client.maxInFlightPer)
 	if err != nil {
 		return nil, err
 	}
-	log.Printf("Max Inflight %d, Per %d, Poolsize %d", this.client.MaxInFlight, this.client.maxInFlightPer, this.client.PoolSize)
-	c.maxInFlight = this.client.maxInFlightPer
+	
 	go c.eventLoop()
 	return c, nil
 }

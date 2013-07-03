@@ -28,8 +28,9 @@ type cheshireConn struct {
 	incomingChan chan *cheshire.Response
 	outgoingChan chan *cheshireRequest
 	exitChan     chan int
-	//if max inflight is reached, we wait on this chan
-	inwaitChan chan bool
+	//every new request will push a bool into this chan,
+	//it will block once full
+	inflightChan chan bool
 
 	//map of txnId to request
 	requests     map[string]*cheshireRequest
@@ -47,7 +48,7 @@ type cheshireRequest struct {
 	errorChan  chan error
 }
 
-func newCheshireConn(protocol cheshire.Protocol, addr string, writeTimeout time.Duration) (*cheshireConn, error) {
+func newCheshireConn(protocol cheshire.Protocol, addr string, writeTimeout time.Duration, maxInFlight int) (*cheshireConn, error) {
 	conn, err := net.DialTimeout("tcp", addr, time.Second)
 	if err != nil {
 		return nil, err
@@ -66,11 +67,12 @@ func newCheshireConn(protocol cheshire.Protocol, addr string, writeTimeout time.
 		exitChan:     make(chan int),
 		incomingChan: make(chan *cheshire.Response, 25),
 		outgoingChan: make(chan *cheshireRequest, 25),
-		//if max inflight is reached, we wait on this chan
-		inwaitChan:  make(chan bool),
+
+		inflightChan:  make(chan bool, maxInFlight),
 		requests:    make(map[string]*cheshireRequest),
 		connectedAt: time.Now(),
 		protocol: protocol,
+		maxInFlight : maxInFlight,
 	}
 	return nc, nil
 }
@@ -101,20 +103,13 @@ func (this *cheshireConn) inflight() int {
 // if inflight does not go down it will close the connection and return error.
 // A returned error can be considered a disconnect
 func (this *cheshireConn) sendRequest(request *cheshire.Request, resultChan chan *cheshire.Response, errorChan chan error) (*cheshireRequest, error) {
-	for this.inflight() > this.maxInFlight {
-
-		log.Printf("Max inflight reached (%d) of %d, waiting", this.inflight(), this.maxInFlight)
-		//TODO: If the inflight goes down to 0 between the for and the select, then we
-		// will wait until the timeout. 
-		select {
-		case <-this.inwaitChan:
-			// log.Println("Inwait recieved")
-			//yay
-		case <-time.After(1 * time.Second):
-			//should close this connection..
-			this.Close()
-			return nil, fmt.Errorf("Max inflight sustained for more then 20 seconds, fail")
-		}
+	
+	select {
+	case this.inflightChan <- true :
+	case <- time.After(1 * time.Second):
+		//should close this connection..
+		this.Close()
+		return nil, fmt.Errorf("Max inflight sustained for more then 20 seconds, fail")
 	}
 
 	if !this.Connected() {
@@ -156,12 +151,6 @@ func (this *cheshireConn) listener() {
 			break
 		}
 		this.incomingChan <- res
-		// log.Println("Sending to inwaitchan")
-		//alert the inwaitchan, non-blocking
-		select {
-		case this.inwaitChan <- true:
-		default:
-		}
 	}
 }
 
@@ -211,6 +200,8 @@ func (this *cheshireConn) eventLoop() {
 				this.requestsLock.Lock()
 				delete(this.requests, response.TxnId())
 				this.requestsLock.Unlock()
+				//pull one from inflight
+				<- this.inflightChan
 			}
 		case request := <-this.outgoingChan:
 			//add to the request map
