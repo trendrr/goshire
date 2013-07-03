@@ -28,8 +28,13 @@ The protocol is async (same as the json protocol), so clients should always list
 
 ```
 [header_length (int32)]
+
+[shard header length (int32)]
 [partition (int16)]
 [length][shard key (string)]
+[router table revision (int64)]
+[length][service name (string)]
+
 [length][txn_id (string)]
 [txn_accept(int8)]
 [method(int8)]
