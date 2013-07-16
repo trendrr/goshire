@@ -15,6 +15,28 @@ const StrestVersion = float32(2)
 
 var strestId int64 = int64(0)
 
+
+
+// Special Param Names
+const (
+    //The partition val (an integer from 0 to TotalPartitions)
+    PARAM_SHARD_PARTITION = "_p"
+
+    PARAM_SHARD_KEY = "_k"
+
+    // The version of the router table
+    PARAM_SHARD_REVISION = "_v"
+
+    //The query type.
+    // This defines how the request can be handled by the router.
+    // Possible values:
+    // single : return a single result (the first response received)
+    // all : (default) return values for all servers, will make an effort to retry on failure, but will generally return error results.
+    // all_q : return values for all servers (queue requests if needed, retry until response).  This would typically be for posting
+    // none_q : returns success immediately, queues the request and make best effort to ensure it is delivered (TODO)
+    PARAM_SHARD_QUERY_TYPE = "_qt"
+)
+
 //create a new unique strest txn id
 func NewTxnId() string {
     id := atomic.AddInt64(&strestId, int64(1))
@@ -58,6 +80,12 @@ func NewRequestDynMap(mp *dynmap.DynMap) *Request {
         txnAccept : mp.MustString("strest.txn.accept", "single"),
         params : mp.MustDynMap("strest.params", dynmap.New()),
     }
+
+    s := &ShardRequest{
+        Partition : request.params.MustInt(PARAM_SHARD_PARTITION, -1),
+        Key : request.params.MustString(PARAM_SHARD_KEY, ""),
+    }
+    request.Shard = s
     return request
 }
 
@@ -70,6 +98,9 @@ func NewRequest(uri, method string) *Request {
         method : method,
         txnAccept : "single",
         params : dynmap.New(),
+        Shard : &ShardRequest{
+            Partition : -1,
+        },
     }
     return request
 }
@@ -171,6 +202,17 @@ func (this *Request) UserAgent() string {
 }
 
 func (this *Request) MarshalJSON() ([]byte, error) {
+    //handle the sharding shit
+    if this.Shard != nil {
+        if this.Shard.Partition >=0 {
+            this.Params().PutIfAbsent(PARAM_SHARD_PARTITION, this.Shard.Partition)
+        }
+        if len(this.Shard.Key) > 0 {
+            this.Params().PutIfAbsent(PARAM_SHARD_KEY, this.Shard.Key)
+        }
+        this.Params().PutIfAbsent(PARAM_SHARD_REVISION, this.Shard.Revision)
+    }
+
     bytes, err := this.Params().MarshalJSON()
     if err != nil {
         return bytes, err
@@ -211,7 +253,6 @@ type Response struct {
 
 //creates a new response from a dynmap
 func NewResponseDynMap(mp *dynmap.DynMap) *Response {
-
     strest := mp.MustDynMap("strest", dynmap.New())
     status := mp.MustDynMap("status", dynmap.New())
     mp.Remove("strest")
@@ -221,8 +262,8 @@ func NewResponseDynMap(mp *dynmap.DynMap) *Response {
         DynMap : *mp,
         txnId : strest.MustString("txn.id", ""),
         txnStatus : strest.MustString("txn.status", "completed"),
-        statusCode : status.MustInt("status.code", 200),
-        statusMessage : status.MustString("status.message", "OK"),
+        statusCode : status.MustInt("code", 200),
+        statusMessage : status.MustString("message", "OK"),
     }
     return response
 }
