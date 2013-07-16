@@ -78,17 +78,27 @@ func contstantsinit() *BinConstants {
 
 type BinDecoder struct {
     reader io.Reader
+
+    //The fields decoded from the hello
+    Hello *dynmap.DynMap
 }
 
 func (this *BinDecoder) DecodeHello() error {
     //read the hello
-    hello, err := readString(this.reader)
+    hello, err := readByteArray(this.reader)
     if err != nil {
         log.Print(err)
         //TODO: Send bad hello.
         return err
     }
-    log.Println(hello)
+
+    this.Hello = dynmap.New()
+    err = this.Hello.UnmarshalJSON(hello)
+    if err != nil {
+        log.Print(err)
+        //TODO: Send bad hello.
+        return err
+    }
     return nil
 }    
 
@@ -341,7 +351,7 @@ func (this *BinProtocol) Type() string {
 
 // Say hello
 func (this *BinProtocol) WriteHello(writer io.Writer) error {
-    str := fmt.Sprintf("%f %s", StrestVersion, "golang")
+    str := fmt.Sprintf("{ \"v\":%f, \"useragent\": \"%s\" }", StrestVersion, "golang")
     _, err := writeString(writer, str)
     return err
 }
