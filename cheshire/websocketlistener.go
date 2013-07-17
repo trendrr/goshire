@@ -3,7 +3,6 @@ package cheshire
 import (
 	"bufio"
 	"code.google.com/p/go.net/websocket"
-	"encoding/json"
 	"io"
 	"log"
 	"net/http"
@@ -16,15 +15,10 @@ type WebsocketWriter struct {
 }
 
 func (this *WebsocketWriter) Write(response *Response) (int, error) {
-	json, err := json.Marshal(response)
-	if err != nil {
-		//TODO: uhh, do something..
-		log.Print(err)
-	}
-	// log.Println("writing ", string(json))
 	defer this.writerLock.Unlock()
 	this.writerLock.Lock()
-	bytes, err := this.conn.Write(json)
+
+	bytes, err := JSON.WriteResponse(response, this.conn)
 	return bytes, err
 }
 
@@ -68,11 +62,12 @@ func (this *WebsocketController) HandleWCConnection(ws *websocket.Conn) {
 	// log.Print("CONNECT!")
 	// conn.writer = bufio.NewWriter(conn.conn)
 
-	dec := json.NewDecoder(bufio.NewReader(ws))
+
+	// dec := json.NewDecoder(bufio.NewReader(conn.conn))
+	dec := JSON.NewDecoder(bufio.NewReader(ws))
 	writer := &WebsocketWriter{conn: ws}
 	for {
-		var req Request
-		err := dec.Decode(&req)
+		req, err := dec.DecodeRequest()
 
 		if err == io.EOF {
 			log.Print(err)
@@ -81,8 +76,9 @@ func (this *WebsocketController) HandleWCConnection(ws *websocket.Conn) {
 			log.Print(err)
 			break
 		}
+		
 		controller := this.serverConfig.Router.Match(req.Method(), req.Uri())
-		go HandleRequest(&req, writer, controller, this.serverConfig)
+		go HandleRequest(req, writer, controller, this.serverConfig)
 	}
 	log.Print("DISCONNECT!")
 }
