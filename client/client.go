@@ -142,7 +142,6 @@ type JsonClient struct {
 	shutdown int32
 	pool     *Pool
 	PoolSize int
-	exitChan chan int
 
 	//The max number of requests that can be waiting for a response.
 	//When max inflight is reached, the client will start
@@ -170,7 +169,6 @@ func NewJson(host string, port int) *JsonClient {
 		Host:        host,
 		Port:        port,
 		shutdown:    1,
-		exitChan:    make(chan int),
 		PingUri:     "/ping",
 		PoolSize:    5,
 		MaxInFlight: 200,
@@ -236,7 +234,11 @@ func (this *JsonClient) Connect() error {
 
 //Close this client.
 func (this *JsonClient) Close() {
-	this.exitChan <- 1
+	if this.Closed() {
+		return
+	}
+	this.setClosed(true)
+	this.pool.Close()
 	log.Println("Send exit message")
 }
 
@@ -359,5 +361,5 @@ func (this *clientPoolCreator) Create() (*cheshireConn, error) {
 //Should clean up the connection resources
 //implementation should deal with Cleanup possibly being called multiple times
 func (this *clientPoolCreator) Cleanup(conn *cheshireConn) {
-
+	conn.Close()
 }
