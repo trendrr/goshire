@@ -304,9 +304,25 @@ func (this *Response) TxnStatus() string {
     return this.txnStatus
 }
 
-// complete or continue
+// completed or continue
 func (this *Response) SetTxnStatus(status string) {
     this.txnStatus = status
+}
+
+func (this *Response) SetTxnComplete() {
+    this.txnStatus = "completed"
+}
+
+func (this *Response) TxnComplete() bool {
+    return this.txnStatus == "completed"
+}
+
+func (this *Response) SetTxnContinue() {
+    this.txnStatus = "continue"
+}
+
+func (this *Response) TxnContinue() bool {
+    return this.txnStatus == "continue"
 }
 
 func (this *Response) SetStatus(code int, message string) {
