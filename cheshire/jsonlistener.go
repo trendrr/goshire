@@ -2,7 +2,6 @@ package cheshire
 
 import (
 	"bufio"
-	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -17,13 +16,9 @@ type JsonWriter struct {
 }
 
 func (this *JsonWriter) Write(response *Response) (int, error) {
-	json, err := json.Marshal(response)
-	if err != nil {
-		return 0, err
-	}
 	defer this.writerLock.Unlock()
 	this.writerLock.Lock()
-	bytes, err := this.conn.Write(json)
+	bytes, err := JSON.WriteResponse(response, this.conn)
 	return bytes, err
 }
 
@@ -47,20 +42,19 @@ func JsonListen(port int, config *ServerConfig) error {
 			// handle error
 			continue
 		}
-		go handleConnection(&JsonWriter{serverConfig: config, conn: conn})
+		go handleJSONConnection(&JsonWriter{serverConfig: config, conn: conn})
 	}
 	return nil
 }
 
-func handleConnection(conn *JsonWriter) {
+func handleJSONConnection(conn *JsonWriter) {
 	defer conn.conn.Close()
 	// log.Print("CONNECT!")
 
-	dec := json.NewDecoder(bufio.NewReader(conn.conn))
-
+	// dec := json.NewDecoder(bufio.NewReader(conn.conn))
+	dec := JSON.NewDecoder(bufio.NewReader(conn.conn))
 	for {
-		var req Request
-		err := dec.Decode(&req)
+		req, err := dec.DecodeRequest()
 
 		if err == io.EOF {
 			log.Print(err)
@@ -69,9 +63,8 @@ func handleConnection(conn *JsonWriter) {
 			log.Print(err)
 			break
 		}
-		//request
 		controller := conn.serverConfig.Router.Match(req.Method(), req.Uri())
-		go HandleRequest(&req, conn, controller, conn.serverConfig)
+		go HandleRequest(req, conn, controller, conn.serverConfig)
 	}
 
 	log.Print("DISCONNECT!")

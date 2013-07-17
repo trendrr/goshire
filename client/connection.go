@@ -2,10 +2,10 @@ package client
 
 import (
 	"bufio"
-	"encoding/json"
+	// "encoding/json"
 	"fmt"
 	"github.com/trendrr/goshire/cheshire"
-	"github.com/trendrr/goshire/dynmap"
+	// "github.com/trendrr/goshire/dynmap"
 	"io"
 	"log"
 	"net"
@@ -28,8 +28,9 @@ type cheshireConn struct {
 	incomingChan chan *cheshire.Response
 	outgoingChan chan *cheshireRequest
 	exitChan     chan int
-	//if max inflight is reached, we wait on this chan
-	inwaitChan chan bool
+	//every new request will push a bool into this chan,
+	//it will block once full
+	inflightChan chan bool
 
 	//map of txnId to request
 	requests     map[string]*cheshireRequest
@@ -37,29 +38,26 @@ type cheshireConn struct {
 
 	connectedAt time.Time
 	maxInFlight int
+	protocol cheshire.Protocol
 }
 
 //wrap a request so we dont lose track of the result channels
 type cheshireRequest struct {
-	bytes      []byte
 	req        *cheshire.Request
 	resultChan chan *cheshire.Response
 	errorChan  chan error
 }
 
-func newCheshireConn(addr string, writeTimeout time.Duration) (*cheshireConn, error) {
+func newCheshireConn(protocol cheshire.Protocol, addr string, writeTimeout time.Duration, maxInFlight int) (*cheshireConn, error) {
 	conn, err := net.DialTimeout("tcp", addr, time.Second)
 	if err != nil {
 		return nil, err
 	}
 
-	//this doesnt work
-	// if c, ok := conn.(net.TCPConn); ok {
-	//     err = c.SetKeepAlive(true)
-	//     if err != nil {
-	//         return nil, err
-	//     }
-	// }
+	err = protocol.WriteHello(conn)
+	if err != nil {
+		return nil, err
+	}
 
 	nc := &cheshireConn{
 		Conn:         conn,
@@ -69,10 +67,12 @@ func newCheshireConn(addr string, writeTimeout time.Duration) (*cheshireConn, er
 		exitChan:     make(chan int),
 		incomingChan: make(chan *cheshire.Response, 25),
 		outgoingChan: make(chan *cheshireRequest, 25),
-		//if max inflight is reached, we wait on this chan
-		inwaitChan:  make(chan bool),
+
+		inflightChan:  make(chan bool, maxInFlight),
 		requests:    make(map[string]*cheshireRequest),
 		connectedAt: time.Now(),
+		protocol: protocol,
+		maxInFlight : maxInFlight,
 	}
 	return nc, nil
 }
@@ -103,32 +103,21 @@ func (this *cheshireConn) inflight() int {
 // if inflight does not go down it will close the connection and return error.
 // A returned error can be considered a disconnect
 func (this *cheshireConn) sendRequest(request *cheshire.Request, resultChan chan *cheshire.Response, errorChan chan error) (*cheshireRequest, error) {
-	if this.inflight() > this.maxInFlight {
-
-		log.Printf("Max inflight reached (%d) of %d, waiting", this.inflight(), this.maxInFlight)
-		//TODO: timeout channel
-		select {
-		case <-this.inwaitChan:
-			//yay
-		case <-time.After(20 * time.Second):
-			//should close this connection..
-			this.Close()
-			return nil, fmt.Errorf("Max inflight sustained for more then 20 seconds, fail")
-		}
+	
+	select {
+	case this.inflightChan <- true :
+	case <- time.After(1 * time.Second):
+		//should close this connection..
+		this.Close()
+		return nil, fmt.Errorf("Max inflight sustained for more then 20 seconds, fail")
 	}
 
 	if !this.Connected() {
 		return nil, fmt.Errorf("Not connected")
 	}
 
-	json, err := json.Marshal(request)
-	if err != nil {
-		return nil, err
-	}
-
 	req := &cheshireRequest{
 		req:        request,
-		bytes:      json,
 		resultChan: resultChan,
 		errorChan:  errorChan,
 	}
@@ -149,12 +138,11 @@ func (this *cheshireConn) String() string {
 
 // loop that listens for incoming messages.
 func (this *cheshireConn) listener() {
-	decoder := json.NewDecoder(bufio.NewReader(this.Conn))
+	decoder := this.protocol.NewDecoder(bufio.NewReader(this.Conn))
 	log.Printf("Starting Cheshire Connection %s", this.addr)
 	defer func() { this.exitChan <- 1 }()
 	for {
-		res := &cheshire.Response{*dynmap.New()}
-		err := decoder.Decode(res)
+		res, err := decoder.DecodeResponse()
 		if err == io.EOF {
 			log.Print(err)
 			break
@@ -163,12 +151,6 @@ func (this *cheshireConn) listener() {
 			break
 		}
 		this.incomingChan <- res
-
-		//alert the inwaitchan, non-blocking
-		select {
-		case this.inwaitChan <- true:
-		default:
-		}
 	}
 }
 
@@ -196,7 +178,7 @@ func (this *cheshireConn) cleanup() {
 func (this *cheshireConn) eventLoop() {
 	go this.listener()
 
-	writer := bufio.NewWriter(this.Conn)
+	// writer := bufio.NewWriter(this.Conn)
 
 	defer this.cleanup()
 	for this.Connected() {
@@ -218,6 +200,8 @@ func (this *cheshireConn) eventLoop() {
 				this.requestsLock.Lock()
 				delete(this.requests, response.TxnId())
 				this.requestsLock.Unlock()
+				//pull one from inflight
+				<- this.inflightChan
 			}
 		case request := <-this.outgoingChan:
 			//add to the request map
@@ -227,13 +211,14 @@ func (this *cheshireConn) eventLoop() {
 
 			//send the request
 			this.SetWriteDeadline(time.Now().Add(this.writeTimeout))
-			_, err := writer.Write(request.bytes)
+
+			_, err := this.protocol.WriteRequest(request.req, this.Conn)
 			if err != nil {
 				//TODO: uhh, do something..
 				log.Print(err)
 				continue
 			}
-			writer.Flush()
+			// writer.Flush()
 
 		case <-this.exitChan:
 			this.setConnected(false)

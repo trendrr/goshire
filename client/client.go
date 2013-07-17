@@ -14,13 +14,7 @@ import (
 	"time"
 )
 
-var strestId int64 = int64(0)
 
-//create a new unique strest txn id
-func NewTxnId() string {
-	id := atomic.AddInt64(&strestId, int64(1))
-	return fmt.Sprintf("go%d", id)
-}
 
 type Client interface {
 	// Does a synchronous api call.  times out after the requested timeout.
@@ -128,8 +122,10 @@ func (this *HttpClient) ApiCallSync(req *cheshire.Request, timeout time.Duration
 	}
 
 	//convert to a strest response2
-	var response = &cheshire.Response{*dynmap.NewDynMap()}
-	err = response.UnmarshalJSON(body)
+	mp := dynmap.New()
+	// var response = &cheshire.Response{*dynmap.NewDynMap()}
+	err = mp.UnmarshalJSON(body)
+	response := cheshire.NewResponseDynMap(mp)
 	if err != nil {
 		return nil, err
 	}
@@ -146,7 +142,6 @@ type JsonClient struct {
 	shutdown int32
 	pool     *Pool
 	PoolSize int
-	exitChan chan int
 
 	//The max number of requests that can be waiting for a response.
 	//When max inflight is reached, the client will start
@@ -164,6 +159,7 @@ type JsonClient struct {
 
 	count          uint64
 	maxInFlightPer int
+	protocol cheshire.Protocol
 }
 
 //Creates a new Json client
@@ -173,13 +169,22 @@ func NewJson(host string, port int) *JsonClient {
 		Host:        host,
 		Port:        port,
 		shutdown:    1,
-		exitChan:    make(chan int),
 		PingUri:     "/ping",
 		PoolSize:    5,
 		MaxInFlight: 200,
 		Retries:     1,
 		RetryPause:  time.Duration(500) * time.Millisecond,
+		protocol: cheshire.JSON,
 	}
+	return client
+}
+
+
+//Creates a new binary
+// Remember to call client.Connect
+func NewBin(host string, port int) *JsonClient {
+	client := NewJson(host, port)
+	client.protocol = cheshire.BIN
 	return client
 }
 
@@ -229,7 +234,11 @@ func (this *JsonClient) Connect() error {
 
 //Close this client.
 func (this *JsonClient) Close() {
-	this.exitChan <- 1
+	if this.Closed() {
+		return
+	}
+	this.setClosed(true)
+	this.pool.Close()
 	log.Println("Send exit message")
 }
 
@@ -246,13 +255,11 @@ func (this *JsonClient) connection() (*cheshireConn, error) {
 				log.Printf("Error getting connection from pool : %s", err)
 				continue
 			}
-			if c.inflight() >= this.maxInFlightPer {
-				this.pool.Return(c)
-				continue
-			}
 			return c, nil
 		}
-		time.Sleep(this.RetryPause)
+		if x < this.Retries {
+			time.Sleep(this.RetryPause)	
+		}
 	}
 	if err == nil {
 		err = fmt.Errorf("Unable to get connection, likely all are busy")
@@ -323,7 +330,7 @@ func (this *JsonClient) doApiCall(req *cheshire.Request, responseChan chan *ches
 		return nil, err
 	}
 	if req.TxnId() == "" {
-		req.SetTxnId(NewTxnId())
+		req.SetTxnId(cheshire.NewTxnId())
 	}
 	r, err := conn.sendRequest(req, responseChan, errorChan)
 	if err == nil {
@@ -341,12 +348,12 @@ type clientPoolCreator struct {
 
 //Should create and connect to a new client
 func (this *clientPoolCreator) Create() (*cheshireConn, error) {
-	c, err := newCheshireConn(fmt.Sprintf("%s:%d", this.client.Host, this.client.Port), 20*time.Second)
+	log.Printf("Max Inflight %d, Per %d, Poolsize %d", this.client.MaxInFlight, this.client.maxInFlightPer, this.client.PoolSize)
+	c, err := newCheshireConn(this.client.protocol, fmt.Sprintf("%s:%d", this.client.Host, this.client.Port), 20*time.Second, this.client.maxInFlightPer)
 	if err != nil {
 		return nil, err
 	}
-	log.Printf("Max Inflight %d, Per %d, Poolsize %d", this.client.MaxInFlight, this.client.maxInFlightPer, this.client.PoolSize)
-	c.maxInFlight = this.client.maxInFlightPer
+	
 	go c.eventLoop()
 	return c, nil
 }
@@ -354,5 +361,5 @@ func (this *clientPoolCreator) Create() (*cheshireConn, error) {
 //Should clean up the connection resources
 //implementation should deal with Cleanup possibly being called multiple times
 func (this *clientPoolCreator) Cleanup(conn *cheshireConn) {
-
+	conn.Close()
 }

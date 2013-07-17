@@ -4,21 +4,23 @@ import (
     "log"
     "github.com/trendrr/goshire/cheshire"
     "github.com/trendrr/goshire/cheshire/impl/gocache"
-       
+    "runtime"
 )
 
 type DummyFilter struct {
     filterName string
 }
 func (this *DummyFilter) Before(*cheshire.Txn) bool {
-    log.Printf("BEFORE! (%s) \n", this.filterName)
+    // log.Printf("BEFORE! (%s) \n", this.filterName)
     return true
 }
 func (this *DummyFilter) After(*cheshire.Response, *cheshire.Txn) {
-    log.Printf("AFTER! (%s) \n", this.filterName)   
+    // log.Printf("AFTER! (%s) \n", this.filterName)   
 }
 
 func main() {
+    runtime.GOMAXPROCS(runtime.NumCPU())
+
     log.Println(cheshire.RandString(32))
     
     //this one will get executed on every request.

@@ -1,7 +1,6 @@
 package cheshire
 
 import (
-	"encoding/json"
 	"fmt"
 	"github.com/trendrr/goshire/dynmap"
 	"log"
@@ -28,7 +27,7 @@ func (this *HttpWriter) Type() string {
 
 func (conn *HttpWriter) Write(response *Response) (int, error) {
 	bytes := 0
-	json, err := json.Marshal(response)
+	json, err := response.MarshalJSON()
 	if err != nil {
 		//TODO: uhh, do something..
 		log.Print(err)
