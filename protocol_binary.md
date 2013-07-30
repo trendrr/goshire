@@ -64,6 +64,8 @@ The protocol is async (same as the json protocol), so clients should always list
 [txn_status(int8)]
 [status (int16)]
 [length][status_message (string)]
+[param_encoding (int8)]
+[length][params (array)]
 [content_encoding (int8)]
 [content_length (int32)][content (array)]
 ```
