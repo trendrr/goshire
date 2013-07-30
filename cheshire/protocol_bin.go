@@ -34,6 +34,8 @@ var PARAM_ENCODING = []string{
 var CONTENT_ENCODING = []string{
     "string", //0
     "bytes", //1
+    "json", //2
+    "msqpack", //3
 }
 
 type BinConstants struct {
@@ -135,6 +137,28 @@ func (this *BinDecoder) DecodeResponse() (*Response, error) {
         return nil, err
     }
     
+
+    //params
+    paramEncoding := int8(0)
+    err = binary.Read(this.reader, binary.BigEndian, &paramEncoding)
+    if err != nil {
+        return nil, err
+    }
+    if int(paramEncoding) >= len(PARAM_ENCODING) {
+        return nil, fmt.Errorf("paramEncoding too large %d", paramEncoding)
+    }
+
+    paramsArray, err := readByteArray(this.reader)
+    if err != nil {
+        return nil, err
+    }
+    params, err := ParseParams(paramEncoding, paramsArray)
+    if err != nil {
+        return nil, err
+    }
+
+
+
     contentEncoding := int8(0)
     err = binary.Read(this.reader, binary.BigEndian, &contentEncoding)
     if err != nil {
@@ -164,7 +188,7 @@ func (this *BinDecoder) DecodeResponse() (*Response, error) {
     //create the response
 
     response := &Response{
-        DynMap : *dynmap.New(),
+        DynMap : *params,
         txnId : txnId,
         txnStatus : TXN_STATUS[int(txnStatus)],
         statusCode : int(statusCode),
@@ -377,7 +401,6 @@ func (this *BinProtocol) WriteShardRequest(s *ShardRequest, writer io.Writer) er
 }
 
 func (this *BinProtocol) WriteResponse(response *Response, writer io.Writer) (int, error) {
-
     //txn id
     _, err := writeString(writer, response.TxnId())
     if err != nil {
@@ -404,6 +427,21 @@ func (this *BinProtocol) WriteResponse(response *Response, writer io.Writer) (in
         return 0, err
     }
 
+    //params
+    paramEncoding := int8(0); //json
+    params, err := response.DynMap.MarshalJSON()
+    if err != nil {
+        return 0, err
+    }
+    err = binary.Write(writer, binary.BigEndian, paramEncoding)
+    if err != nil {
+        return 0, err
+    }
+    _, err = writeByteArray(writer, params)
+    if err != nil {
+        return 0, err
+    }
+    //content
     contentLength := int32(0)
     contentEncoding, ok := BINCONST.ContentEncoding["bytes"]
     contentEncodingStr, contentSet := response.ContentEncoding()
@@ -416,13 +454,7 @@ func (this *BinProtocol) WriteResponse(response *Response, writer io.Writer) (in
             contentEncoding, ok = BINCONST.ContentEncoding["bytes"]
         }        
         content, ok = response.Content()
-    } else if len(response.DynMap.Map) > 0 {
-        content, err = response.DynMap.MarshalJSON()
-        if err != nil {
-            return 0, err
-        }
-    }
-
+    } 
     binary.Write(writer, binary.BigEndian, contentEncoding)
     contentLength = int32(len(content))
     binary.Write(writer, binary.BigEndian, contentLength)
@@ -436,13 +468,7 @@ func (this *BinProtocol) WriteResponse(response *Response, writer io.Writer) (in
 
 func (this *BinProtocol) WriteRequest(request *Request, writer io.Writer) (int, error) {
     
-    paramEncoding := int8(0); //json
-    params, err := request.Params().MarshalJSON()
-    if err != nil {
-        return 0, err
-    }
-
-    err = this.WriteShardRequest(request.Shard, writer)
+    err := this.WriteShardRequest(request.Shard, writer)
     if err != nil {
         return 0, err
     }
@@ -477,6 +503,12 @@ func (this *BinProtocol) WriteRequest(request *Request, writer io.Writer) (int, 
         return 0, err
     }
 
+    //params
+    paramEncoding := int8(0); //json
+    params, err := request.Params().MarshalJSON()
+    if err != nil {
+        return 0, err
+    }
     err = binary.Write(writer, binary.BigEndian, paramEncoding)
     if err != nil {
         return 0, err
