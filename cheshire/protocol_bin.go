@@ -81,6 +81,7 @@ type BinDecoder struct {
 }
 
 func (this *BinDecoder) DecodeHello() error {
+    log.Println("DECODE HELLO")
     //read the hello
     helloEncoding := int8(0)
     err := binary.Read(this.reader, binary.BigEndian, &helloEncoding)
@@ -94,7 +95,7 @@ func (this *BinDecoder) DecodeHello() error {
         //TODO: Send bad hello.
         return err
     }
-
+    log.Printf(" HELLO %s", hello)
     this.Hello = dynmap.New()
     err = this.Hello.UnmarshalJSON(hello)
     if err != nil {
@@ -179,7 +180,7 @@ func (this *BinDecoder) DecodeResponse() (*Response, error) {
 func (this *BinDecoder) DecodeShardRequest() (*ShardRequest, error) {
     //sharding..
     partition := int16(0)
-    err = binary.Read(this.reader, binary.BigEndian, &partition)
+    err := binary.Read(this.reader, binary.BigEndian, &partition)
     if err != nil {
         return nil, err
     }
@@ -340,7 +341,7 @@ func (this *BinProtocol) WriteHello(writer io.Writer) error {
     }
 
     str := fmt.Sprintf("{ \"v\":%f, \"useragent\": \"%s\" }", StrestVersion, "golang")
-    _, err := writeString(writer, str)
+    _, err = writeString(writer, str)
     return err
 }
 
@@ -378,7 +379,7 @@ func (this *BinProtocol) WriteShardRequest(s *ShardRequest, writer io.Writer) er
 func (this *BinProtocol) WriteResponse(response *Response, writer io.Writer) (int, error) {
 
     //txn id
-    _, err = writeString(writer, response.TxnId())
+    _, err := writeString(writer, response.TxnId())
     if err != nil {
         return 0, err
     }

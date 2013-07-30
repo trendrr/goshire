@@ -81,14 +81,13 @@ func NewRequestDynMap(mp *dynmap.DynMap) *Request {
         params : mp.MustDynMap("strest.params", dynmap.New()),
     }
 
-    shardMp, ok := mp.GetMap("strest.shard")
+    shardMp, ok := mp.GetDynMap("strest.shard")
     if ok {
         request.Shard = &ShardRequest{
-            Partition : request.params.MustInt(PARAM_SHARD_PARTITION, -1),
-            Key : request.params.MustString(PARAM_SHARD_KEY, ""),
-            Revision : 
+            Partition : shardMp.MustInt("partition", -1),
+            Key : shardMp.MustString("key", ""),
+            Revision : shardMp.MustInt64("revision", int64(-1)),
         }
-
     } else {
         request.Shard = &ShardRequest{
             Partition : request.params.MustInt(PARAM_SHARD_PARTITION, -1),
