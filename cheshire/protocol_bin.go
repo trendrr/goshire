@@ -27,16 +27,13 @@ var METHOD = []string{
 }
 
 var PARAM_ENCODING = []string{
-    "json",
-    "msgpack",
+    "json", //0
+    "msgpack", //1
 }
 
 var CONTENT_ENCODING = []string{
-    "json",
-    "msgpack",
-    "json-gzip",
-    "gzip",
-    "bytes",
+    "string", //0
+    "bytes", //1
 }
 
 type BinConstants struct {
@@ -85,6 +82,12 @@ type BinDecoder struct {
 
 func (this *BinDecoder) DecodeHello() error {
     //read the hello
+    helloEncoding := int8(0)
+    err := binary.Read(this.reader, binary.BigEndian, &helloEncoding)
+    if err != nil {
+        return err
+    }
+
     hello, err := readByteArray(this.reader)
     if err != nil {
         log.Print(err)
@@ -104,12 +107,7 @@ func (this *BinDecoder) DecodeHello() error {
 
     //Decode the next response from the reader
 func (this *BinDecoder) DecodeResponse() (*Response, error) {
-    headerLength := int32(0) 
-    err := binary.Read(this.reader, binary.BigEndian, &headerLength)
-    if err != nil {
-        return nil, err
-    }
-
+    
     txnId, err := readString(this.reader)
     if err != nil {
         return nil, err
@@ -179,16 +177,6 @@ func (this *BinDecoder) DecodeResponse() (*Response, error) {
 
 // read a shard request from the socket.
 func (this *BinDecoder) DecodeShardRequest() (*ShardRequest, error) {
-    shardHeaderLength := int32(0)
-    err := binary.Read(this.reader, binary.BigEndian, &shardHeaderLength)
-    if err != nil {
-        return nil, err
-    }
-
-    if shardHeaderLength == 0 {
-        return nil, nil
-    }
-
     //sharding..
     partition := int16(0)
     err = binary.Read(this.reader, binary.BigEndian, &partition)
@@ -218,11 +206,6 @@ func (this *BinDecoder) DecodeShardRequest() (*ShardRequest, error) {
 
 //decode the next request from the reader
 func (this *BinDecoder) DecodeRequest() (*Request, error) {
-    headerLength := int32(0) 
-    err := binary.Read(this.reader, binary.BigEndian, &headerLength)
-    if err != nil {
-        return nil, err
-    }
 
     //shard header
     shard, err := this.DecodeShardRequest()
@@ -351,6 +334,11 @@ func (this *BinProtocol) Type() string {
 
 // Say hello
 func (this *BinProtocol) WriteHello(writer io.Writer) error {
+    err := binary.Write(writer, binary.BigEndian, BINCONST.ParamEncoding["json"])
+    if err != nil {
+        return err
+    }
+
     str := fmt.Sprintf("{ \"v\":%f, \"useragent\": \"%s\" }", StrestVersion, "golang")
     _, err := writeString(writer, str)
     return err
@@ -363,23 +351,8 @@ func (this *BinProtocol) NewDecoder(reader io.Reader) Decoder {
     return dec
 }
 
-//measures the header length of the shard request
-func (this *BinProtocol) ShardRequestLength(s *ShardRequest) int32 {
-    if s == nil {
-        return int32(0)
-    }
-
-
-    length := 
-        2 + //partition
-        2 + len(s.Key) +
-        8 //router table revision
-
-    return int32(length)
-}
 
 //write out the shard request.
-//doesn NOT include the shardheader length
 func (this *BinProtocol) WriteShardRequest(s *ShardRequest, writer io.Writer) error {
     if s == nil {
         return nil
@@ -403,18 +376,6 @@ func (this *BinProtocol) WriteShardRequest(s *ShardRequest, writer io.Writer) er
 }
 
 func (this *BinProtocol) WriteResponse(response *Response, writer io.Writer) (int, error) {
-    headerLength :=
-        2 + //txnId length
-        len(response.TxnId()) +
-        1 + //txn status
-        2 + //status
-        2 + //statusmessage length
-        len(response.StatusMessage()) +
-        2 + //content encoding
-        4 //content length
-
-    //write the header length
-    err := binary.Write(writer, binary.BigEndian, int32(headerLength))
 
     //txn id
     _, err = writeString(writer, response.TxnId())
@@ -468,7 +429,7 @@ func (this *BinProtocol) WriteResponse(response *Response, writer io.Writer) (in
         writer.Write(content)
     }
 
-    return 4+headerLength + int(contentLength), nil
+    return int(contentLength), nil
 }
 
 
@@ -480,32 +441,6 @@ func (this *BinProtocol) WriteRequest(request *Request, writer io.Writer) (int, 
         return 0, err
     }
 
-    shardHeaderLength := this.ShardRequestLength(request.Shard) 
-
-    headerLength := 
-        2 + //partition
-        4 + //shardHeaderLength
-        int(shardHeaderLength) + //shard header
-        2 + len(request.TxnId()) + //txnId
-        1 + //txn accept
-        1 + //method
-        2 + len(request.Uri()) +//uri length
-        1 + //param encoding
-        2 + len(params) + //params
-        2 + //content encoding
-        4 //content lenght
-
-    //write the header length
-    err = binary.Write(writer, binary.BigEndian, int32(headerLength))
-    if err != nil {
-        return 0, err
-    }
-
-    //sharding
-    err = binary.Write(writer, binary.BigEndian, shardHeaderLength)
-    if err != nil {
-        return 0, err
-    }
     err = this.WriteShardRequest(request.Shard, writer)
     if err != nil {
         return 0, err
@@ -576,7 +511,7 @@ func (this *BinProtocol) WriteRequest(request *Request, writer io.Writer) (int, 
             writer.Write(content)
         }
     }
-    return 4+headerLength + int(contentLength), nil
+    return int(contentLength), nil
 }   
 
 
