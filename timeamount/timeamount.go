@@ -60,13 +60,14 @@ func NewTime(timeamount TimeAmount, time time.Time) Time {
 	return *t
 }
 
-func NewTimeAmount(amount int, timeframe Timeframe) TimeAmount {
+// Create a new timeamount
+func New(amount int, timeframe Timeframe) TimeAmount {
 	ta := &TimeAmount{amount: amount, timeframe: timeframe}
 	return *ta
 }
 
 // parses a timeamount usually in the form 15 minutes
-func ParseTimeAmount(timeamount string) (TimeAmount, error) {
+func Parse(timeamount string) (TimeAmount, error) {
 	numreg := regexp.MustCompile("[0-9]+")
 
 	ta := &TimeAmount{}
