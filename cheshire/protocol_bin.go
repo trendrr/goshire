@@ -148,10 +148,22 @@ func (this *BinDecoder) DecodeResponse() (*Response, error) {
         return nil, fmt.Errorf("paramEncoding too large %d", paramEncoding)
     }
 
-    paramsArray, err := readByteArray(this.reader)
+    paramsLength := int32(0)
+    err = binary.Read(this.reader, binary.BigEndian, &paramsLength)
     if err != nil {
         return nil, err
     }
+    // log.Printf("contentLentgh %d", contentLength)
+
+    paramsArray := make([]byte, paramsLength)
+    
+    if paramsLength > 0 {
+        _, err = io.ReadAtLeast(this.reader, paramsArray, int(paramsLength))
+        if err != nil {
+            return nil, err
+        }
+    }
+
     params, err := ParseParams(paramEncoding, paramsArray)
     if err != nil {
         return nil, err
@@ -437,10 +449,17 @@ func (this *BinProtocol) WriteResponse(response *Response, writer io.Writer) (in
     if err != nil {
         return 0, err
     }
-    _, err = writeByteArray(writer, params)
+
+    paramsLength := int32(len(params))
+    err = binary.Write(writer, binary.BigEndian, paramsLength)
     if err != nil {
         return 0, err
     }
+    _, err = writer.Write(params)
+    if err != nil {
+        return 0, err
+    }
+
     //content
     contentLength := int32(0)
     contentEncoding, ok := BINCONST.ContentEncoding["bytes"]

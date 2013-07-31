@@ -20,7 +20,7 @@ Request Format
 Clients should send this packet on initial connection.  No response will be sent from the server.  Server will disconnect without a proper hello
 
 ```
-[encoding (int8)] //same values as param_encoding, currently should always be 0 (json) 
+[encoding (int8)] //same values as param_encoding, currently should always be 0 (json)
 [length][json hello (string)]
 ```
 
@@ -65,7 +65,21 @@ The protocol is async (same as the json protocol), so clients should always list
 [status (int16)]
 [length][status_message (string)]
 [param_encoding (int8)]
-[length][params (array)]
+[length (int32)][params (array)]
 [content_encoding (int8)]
 [content_length (int32)][content (array)]
 ```
+
+
+-- Notes:
+    *  The param map contains any top level keys for the response packet.  For instance, if the response in json looks like:
+```
+{
+    strest : {...},
+    mydata : "this is something I added"
+}
+```
+    then the params map would be { mydata : "this is something I added"}
+
+    This is a bit clunky to implement in clients but it makes the clientside responses exactly the same between the different protocols.
+
