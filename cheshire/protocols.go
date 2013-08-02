@@ -11,7 +11,7 @@ import (
 type Protocol interface {
     NewDecoder(io.Reader) Decoder
     //Say hello on first connection (bin only)
-    WriteHello(io.Writer) error
+    WriteHello(io.Writer, *dynmap.DynMap) error
     WriteResponse(*Response, io.Writer) (int, error)
     WriteRequest(*Request, io.Writer) (int, error)
     Type() string
@@ -20,7 +20,7 @@ type Protocol interface {
 
 type Decoder interface {
     //decode the initial hello (bin only)
-    DecodeHello() error
+    DecodeHello() (*dynmap.DynMap, error)
 
     //Decode the next response from the reader
     DecodeResponse() (*Response, error)
@@ -51,7 +51,7 @@ func (this *JSONProtocol) NewDecoder(reader io.Reader) Decoder {
     return dec
 }
 
-func (this *JSONProtocol) WriteHello(writer io.Writer) error {
+func (this *JSONProtocol) WriteHello(writer io.Writer, hello *dynmap.DynMap) error {
     return nil
 }
 
@@ -77,8 +77,8 @@ type JSONDecoder struct {
     dec *json.Decoder
 }
 
-func (this *JSONDecoder) DecodeHello() error {
-    return nil
+func (this *JSONDecoder) DecodeHello() (*dynmap.DynMap, error) {
+    return nil, nil
 }
 
 func (this *JSONDecoder) DecodeResponse() (*Response, error) {

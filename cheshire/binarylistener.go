@@ -64,7 +64,7 @@ func handleConnection(conn *BinaryWriter) {
     // log.Print("CONNECT!")
 
     decoder := BIN.NewDecoder(bufio.NewReader(conn.conn))
-    err := decoder.DecodeHello()
+    _, err := decoder.DecodeHello()
     if err != nil {
         log.Print(err)
         return
