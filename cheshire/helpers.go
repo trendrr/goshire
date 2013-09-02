@@ -6,12 +6,14 @@ import (
 	"encoding/base32"
 	// "fmt"
 	// "hash"
+	// "log"
 	"io"
 	"strings"
 )
 
 // Sends an error response to the channel
 func SendError(txn *Txn, code int, message string) (int, error) {
+	// log.Printf("SEND ERROR: %s : %s",txn.TxnId(), message)
 	resp := NewError(txn, code, message)
 	c, err := txn.Write(resp)
 	return c, err
@@ -20,6 +22,7 @@ func SendError(txn *Txn, code int, message string) (int, error) {
 // sends a standard 200 success response.  
 // will close the current transaction 
 func SendSuccess(txn *Txn) {
+	// log.Printf("SEND SUCCESS: %s", txn.TxnId())
 	txn.Write(NewResponse(txn))
 }
 

@@ -5,7 +5,7 @@ import (
 	// "encoding/json"
 	"fmt"
 	"github.com/trendrr/goshire/cheshire"
-	// "github.com/trendrr/goshire/dynmap"
+	"github.com/trendrr/goshire/dynmap"
 	"io"
 	"log"
 	"net"
@@ -54,7 +54,7 @@ func newCheshireConn(protocol cheshire.Protocol, addr string, writeTimeout time.
 		return nil, err
 	}
 
-	err = protocol.WriteHello(conn)
+	err = protocol.WriteHello(conn, dynmap.New())
 	if err != nil {
 		return nil, err
 	}

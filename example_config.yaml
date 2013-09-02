@@ -1,7 +1,13 @@
 # Example config file 
 
+# The ports to listen on 
+ports:
+   http: 8010
+   json: 8009
+   bin: 8011
+
+# Http specific settings
 http: 
-   port: 8010
    # Static files for serving js/css/ect for http only 
    static_files: 
       route: /static
@@ -10,8 +16,4 @@ http:
       route: /ws
    html: 
       view_directory: views
-json:
-   port: 8009
 
-bin:
-   port: 8011   

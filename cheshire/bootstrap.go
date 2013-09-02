@@ -158,8 +158,8 @@ func (this *Bootstrap) Start() {
 	this.RunInitMethods(this)
 	log.Println("********** Starting Cheshire **************")
 	//now start listening.
-	if this.Conf.Exists("http.port") {
-		port, ok := this.Conf.GetInt("http.port")
+	if this.Conf.Exists("ports.http") {
+		port, ok := this.Conf.GetInt("ports.http")
 		if !ok {
 			log.Println("ERROR: Couldn't start http listener ", port)
 		} else {
@@ -167,8 +167,8 @@ func (this *Bootstrap) Start() {
 		}
 	}
 
-	if this.Conf.Exists("json.port") {
-		port, ok := this.Conf.GetInt("json.port")
+	if this.Conf.Exists("ports.json") {
+		port, ok := this.Conf.GetInt("ports.json")
 		if !ok {
 			log.Println("ERROR: Couldn't start json listener")
 		} else {
@@ -176,8 +176,8 @@ func (this *Bootstrap) Start() {
 		}
 	}
 
-	if this.Conf.Exists("bin.port") {
-		port, ok := this.Conf.GetInt("bin.port")
+	if this.Conf.Exists("ports.bin") {
+		port, ok := this.Conf.GetInt("ports.bin")
 		if !ok {
 			log.Println("ERROR: Couldn't start binary listener")
 		} else {

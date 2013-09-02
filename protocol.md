@@ -40,6 +40,11 @@ A transaction for a typical REST call is short lived, it ends as soon as the ser
        "uri" : "/v1/rest/endpoint", //the endpoint
        "method" : "GET", //GET, POST, PUT, or DELETE
        "params" : { "param1" : 12 }, //map of parameters to pass to the controller (optional), these can also be passed with the uri in standard http fashion
+       "shard" : { //used only for shard requests, see goshire-shards project
+          "partition" : -1, //the partition -1 as default
+          "key" : , //the key to partition from.  either partition or key is necessary for routing
+          "revision" : 0, //the router table revision, typically not necessary
+      }
    }
 }
 </pre>
