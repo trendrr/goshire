@@ -597,7 +597,7 @@ func CopyByteArray(dest io.Writer, src io.Reader) error {
     if err != nil {
         return err
     }
-    _, err = io.CopyN(dest, src, int64(length))
+    err = CopyN(dest, src, int64(length))
     return err
 }
 
@@ -612,7 +612,47 @@ func CopyByteArray32(dest io.Writer, src io.Reader) error {
     if err != nil {
         return err
     }
-    _, err = io.CopyN(dest, src, int64(length))
+    err = CopyN(dest, src, int64(length))
+    return err
+}
+
+// Copies N bytes to the writer from the reader,
+// hopefully faster then the fucked up way in the stdlib
+func CopyN(dst io.Writer, src io.Reader, bytes int64) (err error) {
+
+    // remaining := bytes
+    // bufsize := 1024
+    
+    // buf := make([]byte, 1024)
+    // for remaining > 0 {
+    //     if 
+
+    //     nr, er := src.Read(buf)
+    //     if nr > 0 {
+    //         nw, ew := dst.Write(buf[0:nr])
+    //         if nw > 0 {
+    //             written += int64(nw)
+    //         }
+    //         if ew != nil {
+    //             err = ew
+    //             break
+    //         }
+    //         if nr != nw {
+    //             err = fmt.Errorf("Short write error")
+    //             break
+    //         }
+    //     }
+    //     if er == io.EOF {
+    //         break
+    //     }
+    //     if er != nil {
+    //         err = er
+    //         break
+    //     }
+    // }
+    // return err
+
+    _, err = io.CopyN(dst, src, bytes)
     return err
 }
 
@@ -640,4 +680,8 @@ func WriteByteArray(writer io.Writer, bytes []byte) (int, error) {
 func WriteString(writer io.Writer, str string) (int, error) {
     l,err := WriteByteArray(writer, []byte(str))
     return l,err
+}
+
+type Flusher interface {
+    Flush() error
 }
