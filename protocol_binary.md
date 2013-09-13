@@ -11,7 +11,7 @@ The binary protocol is similar to the json protocol, just a different encoding, 
 Request Format
 
 * All integers are signed big endian.
-* Variable length fields (arrays and strings) are all prefixed by a 'length' int
+* Variable length fields (arrays and strings) are all prefixed by a 'length' int16
 * All length fields are int16, unless otherwise noted
 * All strings are utf8 encoded
 
@@ -20,6 +20,7 @@ Request Format
 Clients should send this packet on initial connection.  No response will be sent from the server.  Server will disconnect without a proper hello
 
 ```
+[encoding (int8)] //same values as param_encoding, currently should always be 0 (json)
 [length][json hello (string)]
 ```
 
@@ -40,8 +41,6 @@ The protocol is async (same as the json protocol), so clients should always list
 ### REQUEST
 
 ```
-[header_length (int32)]
-
 [partition (int16)] //set to -1 as default
 [length][shard key (string)] 
 [router table revision (int64)]
@@ -51,7 +50,7 @@ The protocol is async (same as the json protocol), so clients should always list
 [method(int8)]
 [length][uri (string)]
 [param_encoding (int8)]
-[params (array)]
+[length][params (array)]
 [content_encoding (int8)]
 [content_length (int32)][content (array)]
 ```
@@ -61,11 +60,26 @@ The protocol is async (same as the json protocol), so clients should always list
 ### RESPONSE
 
 ```
-[header_length (int32)]
 [length][txn_id (string)]
 [txn_status(int8)]
 [status (int16)]
 [length][status_message (string)]
+[param_encoding (int8)]
+[length (int32)][params (array)]
 [content_encoding (int8)]
 [content_length (int32)][content (array)]
 ```
+
+
+-- Notes:
+    *  The param map contains any top level keys for the response packet.  For instance, if the response in json looks like:
+```
+{
+    strest : {...},
+    mydata : "this is something I added"
+}
+```
+    then the params map would be { mydata : "this is something I added"}
+
+    This is a bit clunky to implement in clients but it makes the clientside responses exactly the same between the different protocols.
+

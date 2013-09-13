@@ -27,16 +27,15 @@ var METHOD = []string{
 }
 
 var PARAM_ENCODING = []string{
-    "json",
-    "msgpack",
+    "json", //0
+    "msgpack", //1
 }
 
 var CONTENT_ENCODING = []string{
-    "json",
-    "msgpack",
-    "json-gzip",
-    "gzip",
-    "bytes",
+    "string", //0
+    "bytes", //1
+    "json", //2
+    "msqpack", //3
 }
 
 type BinConstants struct {
@@ -83,34 +82,36 @@ type BinDecoder struct {
     Hello *dynmap.DynMap
 }
 
-func (this *BinDecoder) DecodeHello() error {
+func (this *BinDecoder) DecodeHello() (*dynmap.DynMap, error) {
+    log.Println("DECODE HELLO")
     //read the hello
-    hello, err := readByteArray(this.reader)
+    helloEncoding := int8(0)
+    err := binary.Read(this.reader, binary.BigEndian, &helloEncoding)
+    if err != nil {
+        return nil, err
+    }
+
+    hello, err := ReadByteArray(this.reader)
     if err != nil {
         log.Print(err)
         //TODO: Send bad hello.
-        return err
+        return nil, err
     }
-
+    log.Printf(" HELLO %s", hello)
     this.Hello = dynmap.New()
     err = this.Hello.UnmarshalJSON(hello)
     if err != nil {
         log.Print(err)
         //TODO: Send bad hello.
-        return err
+        return nil, err
     }
-    return nil
+    return this.Hello, nil
 }    
 
     //Decode the next response from the reader
 func (this *BinDecoder) DecodeResponse() (*Response, error) {
-    headerLength := int32(0) 
-    err := binary.Read(this.reader, binary.BigEndian, &headerLength)
-    if err != nil {
-        return nil, err
-    }
-
-    txnId, err := readString(this.reader)
+    
+    txnId, err := ReadString(this.reader)
     if err != nil {
         return nil, err
     }
@@ -131,11 +132,45 @@ func (this *BinDecoder) DecodeResponse() (*Response, error) {
         return nil, err
     }
     // log.Printf("Status %d", statusCode)
-    statusMessage, err := readString(this.reader)
+    statusMessage, err := ReadString(this.reader)
     if err != nil {
         return nil, err
     }
     
+
+    //params
+    paramEncoding := int8(0)
+    err = binary.Read(this.reader, binary.BigEndian, &paramEncoding)
+    if err != nil {
+        return nil, err
+    }
+    if int(paramEncoding) >= len(PARAM_ENCODING) {
+        return nil, fmt.Errorf("paramEncoding too large %d", paramEncoding)
+    }
+
+    paramsLength := int32(0)
+    err = binary.Read(this.reader, binary.BigEndian, &paramsLength)
+    if err != nil {
+        return nil, err
+    }
+    // log.Printf("contentLentgh %d", contentLength)
+
+    paramsArray := make([]byte, paramsLength)
+    
+    if paramsLength > 0 {
+        _, err = io.ReadAtLeast(this.reader, paramsArray, int(paramsLength))
+        if err != nil {
+            return nil, err
+        }
+    }
+
+    params, err := ParseParams(paramEncoding, paramsArray)
+    if err != nil {
+        return nil, err
+    }
+
+
+
     contentEncoding := int8(0)
     err = binary.Read(this.reader, binary.BigEndian, &contentEncoding)
     if err != nil {
@@ -165,7 +200,7 @@ func (this *BinDecoder) DecodeResponse() (*Response, error) {
     //create the response
 
     response := &Response{
-        DynMap : *dynmap.New(),
+        DynMap : *params,
         txnId : txnId,
         txnStatus : TXN_STATUS[int(txnStatus)],
         statusCode : int(statusCode),
@@ -179,24 +214,14 @@ func (this *BinDecoder) DecodeResponse() (*Response, error) {
 
 // read a shard request from the socket.
 func (this *BinDecoder) DecodeShardRequest() (*ShardRequest, error) {
-    shardHeaderLength := int32(0)
-    err := binary.Read(this.reader, binary.BigEndian, &shardHeaderLength)
-    if err != nil {
-        return nil, err
-    }
-
-    if shardHeaderLength == 0 {
-        return nil, nil
-    }
-
     //sharding..
     partition := int16(0)
-    err = binary.Read(this.reader, binary.BigEndian, &partition)
+    err := binary.Read(this.reader, binary.BigEndian, &partition)
     if err != nil {
         return nil, err
     }
 
-    shardkey, err := readString(this.reader)
+    shardkey, err := ReadString(this.reader)
     if err != nil {
         return nil, err
     }
@@ -218,11 +243,6 @@ func (this *BinDecoder) DecodeShardRequest() (*ShardRequest, error) {
 
 //decode the next request from the reader
 func (this *BinDecoder) DecodeRequest() (*Request, error) {
-    headerLength := int32(0) 
-    err := binary.Read(this.reader, binary.BigEndian, &headerLength)
-    if err != nil {
-        return nil, err
-    }
 
     //shard header
     shard, err := this.DecodeShardRequest()
@@ -231,7 +251,7 @@ func (this *BinDecoder) DecodeRequest() (*Request, error) {
     }
 
     //txn id
-    txnId, err := readString(this.reader)
+    txnId, err := ReadString(this.reader)
     if err != nil {
         return nil, err
     }
@@ -257,7 +277,7 @@ func (this *BinDecoder) DecodeRequest() (*Request, error) {
     }
 
     //uri
-    uri, err := readString(this.reader)
+    uri, err := ReadString(this.reader)
     if err != nil {
         return nil, err
     }
@@ -272,7 +292,7 @@ func (this *BinDecoder) DecodeRequest() (*Request, error) {
         return nil, fmt.Errorf("paramEncoding too large %d", paramEncoding)
     }
 
-    paramsArray, err := readByteArray(this.reader)
+    paramsArray, err := ReadByteArray(this.reader)
     if err != nil {
         return nil, err
     }
@@ -350,9 +370,19 @@ func (this *BinProtocol) Type() string {
 }
 
 // Say hello
-func (this *BinProtocol) WriteHello(writer io.Writer) error {
-    str := fmt.Sprintf("{ \"v\":%f, \"useragent\": \"%s\" }", StrestVersion, "golang")
-    _, err := writeString(writer, str)
+func (this *BinProtocol) WriteHello(writer io.Writer, hello *dynmap.DynMap) error {
+    err := binary.Write(writer, binary.BigEndian, BINCONST.ParamEncoding["json"])
+    if err != nil {
+        return err
+    }
+
+    hello.PutIfAbsent("v", StrestVersion)
+    hello.PutIfAbsent("useragent", "golang")
+    b, err := hello.MarshalJSON()
+    if err != nil {
+        return err
+    }
+    _, err = WriteString(writer, string(b))
     return err
 }
 
@@ -363,23 +393,8 @@ func (this *BinProtocol) NewDecoder(reader io.Reader) Decoder {
     return dec
 }
 
-//measures the header length of the shard request
-func (this *BinProtocol) ShardRequestLength(s *ShardRequest) int32 {
-    if s == nil {
-        return int32(0)
-    }
-
-
-    length := 
-        2 + //partition
-        2 + len(s.Key) +
-        8 //router table revision
-
-    return int32(length)
-}
 
 //write out the shard request.
-//doesn NOT include the shardheader length
 func (this *BinProtocol) WriteShardRequest(s *ShardRequest, writer io.Writer) error {
     if s == nil {
         return nil
@@ -389,7 +404,7 @@ func (this *BinProtocol) WriteShardRequest(s *ShardRequest, writer io.Writer) er
     if err != nil {
         return err
     }
-    _, err = writeString(writer, s.Key)
+    _, err = WriteString(writer, s.Key)
     if err != nil {
         return err
     }
@@ -403,21 +418,8 @@ func (this *BinProtocol) WriteShardRequest(s *ShardRequest, writer io.Writer) er
 }
 
 func (this *BinProtocol) WriteResponse(response *Response, writer io.Writer) (int, error) {
-    headerLength :=
-        2 + //txnId length
-        len(response.TxnId()) +
-        1 + //txn status
-        2 + //status
-        2 + //statusmessage length
-        len(response.StatusMessage()) +
-        2 + //content encoding
-        4 //content length
-
-    //write the header length
-    err := binary.Write(writer, binary.BigEndian, int32(headerLength))
-
     //txn id
-    _, err = writeString(writer, response.TxnId())
+    _, err := WriteString(writer, response.TxnId())
     if err != nil {
         return 0, err
     }
@@ -437,11 +439,33 @@ func (this *BinProtocol) WriteResponse(response *Response, writer io.Writer) (in
         return 0, err
     }
 
-    _, err = writeString(writer, response.StatusMessage())
+    _, err = WriteString(writer, response.StatusMessage())
     if err != nil {
         return 0, err
     }
 
+    //params
+    paramEncoding := int8(0); //json
+    params, err := response.DynMap.MarshalJSON()
+    if err != nil {
+        return 0, err
+    }
+    err = binary.Write(writer, binary.BigEndian, paramEncoding)
+    if err != nil {
+        return 0, err
+    }
+
+    paramsLength := int32(len(params))
+    err = binary.Write(writer, binary.BigEndian, paramsLength)
+    if err != nil {
+        return 0, err
+    }
+    _, err = writer.Write(params)
+    if err != nil {
+        return 0, err
+    }
+
+    //content
     contentLength := int32(0)
     contentEncoding, ok := BINCONST.ContentEncoding["bytes"]
     contentEncodingStr, contentSet := response.ContentEncoding()
@@ -454,13 +478,7 @@ func (this *BinProtocol) WriteResponse(response *Response, writer io.Writer) (in
             contentEncoding, ok = BINCONST.ContentEncoding["bytes"]
         }        
         content, ok = response.Content()
-    } else if len(response.DynMap.Map) > 0 {
-        content, err = response.DynMap.MarshalJSON()
-        if err != nil {
-            return 0, err
-        }
-    }
-
+    } 
     binary.Write(writer, binary.BigEndian, contentEncoding)
     contentLength = int32(len(content))
     binary.Write(writer, binary.BigEndian, contentLength)
@@ -468,51 +486,19 @@ func (this *BinProtocol) WriteResponse(response *Response, writer io.Writer) (in
         writer.Write(content)
     }
 
-    return 4+headerLength + int(contentLength), nil
+    return int(contentLength), nil
 }
 
 
 func (this *BinProtocol) WriteRequest(request *Request, writer io.Writer) (int, error) {
     
-    paramEncoding := int8(0); //json
-    params, err := request.Params().MarshalJSON()
-    if err != nil {
-        return 0, err
-    }
-
-    shardHeaderLength := this.ShardRequestLength(request.Shard) 
-
-    headerLength := 
-        2 + //partition
-        4 + //shardHeaderLength
-        int(shardHeaderLength) + //shard header
-        2 + len(request.TxnId()) + //txnId
-        1 + //txn accept
-        1 + //method
-        2 + len(request.Uri()) +//uri length
-        1 + //param encoding
-        2 + len(params) + //params
-        2 + //content encoding
-        4 //content lenght
-
-    //write the header length
-    err = binary.Write(writer, binary.BigEndian, int32(headerLength))
-    if err != nil {
-        return 0, err
-    }
-
-    //sharding
-    err = binary.Write(writer, binary.BigEndian, shardHeaderLength)
-    if err != nil {
-        return 0, err
-    }
-    err = this.WriteShardRequest(request.Shard, writer)
+    err := this.WriteShardRequest(request.Shard, writer)
     if err != nil {
         return 0, err
     }
 
     //txn id
-    _, err = writeString(writer, request.TxnId())
+    _, err = WriteString(writer, request.TxnId())
     if err != nil {
         return 0, err
     }
@@ -536,16 +522,22 @@ func (this *BinProtocol) WriteRequest(request *Request, writer io.Writer) (int, 
         return 0, err
     }
 
-    _, err = writeString(writer, request.Uri())
+    _, err = WriteString(writer, request.Uri())
     if err != nil {
         return 0, err
     }
 
+    //params
+    paramEncoding := int8(0); //json
+    params, err := request.Params().MarshalJSON()
+    if err != nil {
+        return 0, err
+    }
     err = binary.Write(writer, binary.BigEndian, paramEncoding)
     if err != nil {
         return 0, err
     }
-    _, err = writeByteArray(writer, params)
+    _, err = WriteByteArray(writer, params)
     if err != nil {
         return 0, err
     }
@@ -576,13 +568,13 @@ func (this *BinProtocol) WriteRequest(request *Request, writer io.Writer) (int, 
             writer.Write(content)
         }
     }
-    return 4+headerLength + int(contentLength), nil
+    return int(contentLength), nil
 }   
 
 
 // Reads a length prefixed byte array
 // it assumes the first 
-func readByteArray(reader io.Reader) ([]byte, error) {
+func ReadByteArray(reader io.Reader) ([]byte, error) {
     length := int16(0)
     err := binary.Read(reader, binary.BigEndian, &length)
     if err != nil {
@@ -594,9 +586,79 @@ func readByteArray(reader io.Reader) ([]byte, error) {
     return bytes, err
 }
 
+// copies a length prefixed byte array from the src to the dest.
+func CopyByteArray(dest io.Writer, src io.Reader) error {
+    length := int16(0)
+    err := binary.Read(src, binary.BigEndian, &length)
+    if err != nil {
+        return err
+    }
+    err = binary.Write(dest, binary.BigEndian, length)
+    if err != nil {
+        return err
+    }
+    err = CopyN(dest, src, int64(length))
+    return err
+}
+
+// copies a byte array with a int32 length 
+func CopyByteArray32(dest io.Writer, src io.Reader) error {
+    length := int32(0)
+    err := binary.Read(src, binary.BigEndian, &length)
+    if err != nil {
+        return err
+    }
+    err = binary.Write(dest, binary.BigEndian, length)
+    if err != nil {
+        return err
+    }
+    err = CopyN(dest, src, int64(length))
+    return err
+}
+
+// Copies N bytes to the writer from the reader,
+// hopefully faster then the fucked up way in the stdlib
+func CopyN(dst io.Writer, src io.Reader, bytes int64) (err error) {
+
+    // remaining := bytes
+    // bufsize := 1024
+    
+    // buf := make([]byte, 1024)
+    // for remaining > 0 {
+    //     if 
+
+    //     nr, er := src.Read(buf)
+    //     if nr > 0 {
+    //         nw, ew := dst.Write(buf[0:nr])
+    //         if nw > 0 {
+    //             written += int64(nw)
+    //         }
+    //         if ew != nil {
+    //             err = ew
+    //             break
+    //         }
+    //         if nr != nw {
+    //             err = fmt.Errorf("Short write error")
+    //             break
+    //         }
+    //     }
+    //     if er == io.EOF {
+    //         break
+    //     }
+    //     if er != nil {
+    //         err = er
+    //         break
+    //     }
+    // }
+    // return err
+
+    _, err = io.CopyN(dst, src, bytes)
+    return err
+}
+
 //Reads a length prefixed utf8 string 
-func readString(reader io.Reader) (string, error) {
-    b, err := readByteArray(reader)
+func ReadString(reader io.Reader) (string, error) {
+    b, err := ReadByteArray(reader)
     if err != nil {
         return "", err
     }
@@ -604,7 +666,7 @@ func readString(reader io.Reader) (string, error) {
 }
 
 //writes a length prefixed byte array
-func writeByteArray(writer io.Writer, bytes []byte) (int, error) {
+func WriteByteArray(writer io.Writer, bytes []byte) (int, error) {
     length := int16(len(bytes))
     err := binary.Write(writer, binary.BigEndian, length)
     if err != nil {
@@ -615,7 +677,11 @@ func writeByteArray(writer io.Writer, bytes []byte) (int, error) {
 }
 
 //writes a length prefixed utf8 string 
-func writeString(writer io.Writer, str string) (int, error) {
-    l,err := writeByteArray(writer, []byte(str))
+func WriteString(writer io.Writer, str string) (int, error) {
+    l,err := WriteByteArray(writer, []byte(str))
     return l,err
+}
+
+type Flusher interface {
+    Flush() error
 }
