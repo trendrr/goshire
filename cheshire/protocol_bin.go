@@ -292,7 +292,7 @@ func (this *BinDecoder) DecodeRequest() (*Request, error) {
         return nil, fmt.Errorf("paramEncoding too large %d", paramEncoding)
     }
 
-    paramsArray, err := ReadByteArray(this.reader)
+    paramsArray, err := ReadByteArray32(this.reader)
     if err != nil {
         return nil, err
     }
@@ -537,7 +537,7 @@ func (this *BinProtocol) WriteRequest(request *Request, writer io.Writer) (int, 
     if err != nil {
         return 0, err
     }
-    _, err = WriteByteArray(writer, params)
+    _, err = WriteByteArray32(writer, params)
     if err != nil {
         return 0, err
     }
@@ -554,10 +554,11 @@ func (this *BinProtocol) WriteRequest(request *Request, writer io.Writer) (int, 
         binary.Write(writer, binary.BigEndian, contentEncoding)
         content, ok := request.Content()
         contentLength = int32(len(content))
-        binary.Write(writer, binary.BigEndian, contentLength)
-        if contentLength > 0{
-            writer.Write(content)
+        _, err = WriteByteArray32(writer, content)
+        if err != nil {
+            return 0, err
         }
+
     } else {
         contentEncoding, _ := BINCONST.ContentEncoding["bytes"]
         binary.Write(writer, binary.BigEndian, contentEncoding)
@@ -581,11 +582,34 @@ func ReadByteArray(reader io.Reader) ([]byte, error) {
         return nil, err
     }
 
+    if length < 0 {
+        log.Printf("Error length is %d", length)
+        return nil, fmt.Errorf("Length is negative!")
+    }
+
     bytes := make([]byte, length)
     _, err = io.ReadAtLeast(reader, bytes, int(length))
     return bytes, err
 }
 
+// Reads a length prefixed byte array
+// it assumes the first 
+func ReadByteArray32(reader io.Reader) ([]byte, error) {
+    length := int32(0)
+    err := binary.Read(reader, binary.BigEndian, &length)
+    if err != nil {
+        return nil, err
+    }
+
+    if length < 0 {
+        log.Printf("Error length is %d", length)
+        return nil, fmt.Errorf("Length is negative!")
+    }
+
+    bytes := make([]byte, length)
+    _, err = io.ReadAtLeast(reader, bytes, int(length))
+    return bytes, err
+}
 // copies a length prefixed byte array from the src to the dest.
 func CopyByteArray(dest io.Writer, src io.Reader) error {
     length := int16(0)
@@ -674,6 +698,17 @@ func WriteByteArray(writer io.Writer, bytes []byte) (int, error) {
     }
     l, err := writer.Write(bytes)
     return l+2, err
+}
+
+//writes a length int32 prefixed byte array
+func WriteByteArray32(writer io.Writer, bytes []byte) (int, error) {
+    length := int32(len(bytes))
+    err := binary.Write(writer, binary.BigEndian, length)
+    if err != nil {
+        return 0, err
+    }
+    l, err := writer.Write(bytes)
+    return l+4, err
 }
 
 //writes a length prefixed utf8 string 

@@ -50,7 +50,7 @@ The protocol is async (same as the json protocol), so clients should always list
 [method(int8)]
 [length][uri (string)]
 [param_encoding (int8)]
-[length][params (array)]
+[length (int32)][params (array)]
 [content_encoding (int8)]
 [content_length (int32)][content (array)]
 ```
