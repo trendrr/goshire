@@ -32,7 +32,7 @@ The hello json package should look like the following:
     "useragent" : //the useragent (required)
     "service" : //the service (if used to connect to a shard router only)
 }
-```
+```	
 
 After hello is sent, then the client is free to start sending requests, and recieving responses.
 The protocol is async (same as the json protocol), so clients should always listen for new responses.  There are only 2 packet types: REQUEST and RESPONSE.  
