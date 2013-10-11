@@ -4,6 +4,7 @@ import(
 	"github.com/trendrr/goshire/dynmap"
 	"github.com/trendrr/goshire/timeamount"
 	"time"
+	"log"
 
 )
 
@@ -12,7 +13,7 @@ import(
 type Stats struct {
 	itemChan chan statsItem
 	Persister StatsPersister
-	items map[timeamount.TimeAmount]&StatsSave
+	items map[timeamount.TimeAmount]*StatsSave
 
 }
 
@@ -36,7 +37,7 @@ type statsItem struct {
 type StatsSave struct {
 	Epoch int64
 	TimeAmount timeamount.TimeAmount
-	Values dynmap.DynMap
+	Values *dynmap.DynMap
 }
 
 // Creates a new Stats tracker. caller must still envoke the Start function
@@ -46,7 +47,7 @@ type StatsSave struct {
 func New(timeamounts ...string) (*Stats, error) {
 	s := &Stats{
 		itemChan : make(chan statsItem, 500),
-		items : make(map[timeamount.TimeAmount]&StatsSave),
+		items : make(map[timeamount.TimeAmount]*StatsSave),
 	}
 	for _,ta := range(timeamounts) {
 		t, err := timeamount.Parse(ta)
@@ -59,6 +60,7 @@ func New(timeamounts ...string) (*Stats, error) {
 				Values : dynmap.New(),
 		}
 	}
+	return s, nil
 }
 
 // Sets the given key with the given value.
@@ -83,7 +85,7 @@ func (this *Stats) Inc(key string, val int) {
 func (this *Stats) Start() {
 	go this.eventLoop()
 }
-w
+
 func (this *Stats) Close() error {
 	//TODO: cleanly exit
 	return nil
@@ -100,7 +102,7 @@ func (this *Stats) eventLoop() {
 }
 
 
-func (this *Stats) add(item StatsItem) {
+func (this *Stats) add(item statsItem) {
 	for ta, sts := range(this.items) {
 		epoch := ta.ToTrendrrEpoch(time.Now())
 
@@ -126,9 +128,9 @@ func (this *Stats) add(item StatsItem) {
 	}
 }
 
-func (this *Stats) persist(item StatsSave) {
+func (this *Stats) persist(item *StatsSave) {
 	//Do something 
-	json, err := item.MarshalJSON()
+	json, _ := item.Values.MarshalJSON()
 
 	log.Printf("TODO PERSISTING %s %s", item.TimeAmount.String(), string(json))
 }
