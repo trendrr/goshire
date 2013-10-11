@@ -21,9 +21,16 @@ type StatsPersister interface {
 
 }
 
+type statsItemType int
+const (
+	SET statsItemType = 0
+	INC                = 1
+)
+
 type statsItem struct {
 	Key string
 	Val int64
+	typ statsItemType
 }
 
 type StatsSave struct {
@@ -32,11 +39,11 @@ type StatsSave struct {
 	Values dynmap.DynMap
 }
 
-// Creates a new Stats tracker.  and starts the eventLoop.
+// Creates a new Stats tracker. caller must still envoke the Start function
 // timeamounts should be in the form "{num} {timeframe}" 
 // example 
 // NewStats("1 minute", "30 minute", "1 day")
-func NewStats(timeamounts ...string) (*Stats, error) {
+func New(timeamounts ...string) (*Stats, error) {
 	s := &Stats{
 		itemChan : make(chan statsItem, 500),
 		items : make(map[timeamount.TimeAmount]&StatsSave),
@@ -52,15 +59,34 @@ func NewStats(timeamounts ...string) (*Stats, error) {
 				Values : dynmap.New(),
 		}
 	}
-	go s.eventLoop()
 }
 
-func (this *Stats) Inc(key string, val int64) {
+// Sets the given key with the given value.
+func (this *Stats) Set(key string, val int64) {
 	select {
-	case this.itemChan <- statsItem{Key : key, Val : val} :
+	case this.itemChan <- statsItem{Key : key, Val : int64(val), typ : SET} :
 	default :
 		log.Printf( "Could not Inc Key: %s Val: %d", key, val)
 	}
+}
+
+func (this *Stats) Inc(key string, val int) {
+	select {
+	case this.itemChan <- statsItem{Key : key, Val : int64(val), typ : INC} :
+	default :
+		log.Printf( "Could not Inc Key: %s Val: %d", key, val)
+	}
+}
+
+//starts the event loop.
+//this is necessary for it to do anything!
+func (this *Stats) Start() {
+	go this.eventLoop()
+}
+w
+func (this *Stats) Close() error {
+	//TODO: cleanly exit
+	return nil
 }
 
 func (this *Stats) eventLoop() {
@@ -88,8 +114,15 @@ func (this *Stats) add(item StatsItem) {
 			}
 			this.items[ta] = sts
 		}
-		val := sts.Values.MustInt64(item.Key, int64(0))
-		sts.Values.PutWithDot(item.Key, int64(val+item.Val))
+		
+		if item.typ == INC {
+			val := sts.Values.MustInt64(item.Key, int64(0))
+			sts.Values.PutWithDot(item.Key, int64(val+item.Val))	
+		} else if item.typ == SET {
+			sts.Values.PutWithDot(item.Key, int64(item.Val))
+		}
+
+		
 	}
 }
 
