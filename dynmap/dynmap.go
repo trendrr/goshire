@@ -45,6 +45,19 @@ func (this *DynMap) ToMap() map[string]interface{} {
 	return mp
 }
 
+// recursively clones this DynMap. all sub maps will be clones as well  
+func (this *DynMap) Clone() *DynMap {
+	mp := New()
+	for k, v := range(this.Map) {
+		submp, ok := ToDynMap(this.Map[k])
+		if ok {
+			v = submp.Clone()
+		}
+		mp.Put(k, v)
+	}
+	return mp
+}
+
 // Returns self. Here so that we satisfy the DynMaper interface
 func (this *DynMap) ToDynMap() *DynMap {
 	return this
