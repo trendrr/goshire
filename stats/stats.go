@@ -1,4 +1,4 @@
-package aq
+package stats
 
 import(
 	"github.com/trendrr/goshire/dynmap"
@@ -12,6 +12,7 @@ import(
 
 type Stats struct {
 	itemChan chan statsItem
+	getChan chan getRequest
 	Persister StatsPersister
 	items map[timeamount.TimeAmount]*StatsSave
 
@@ -27,6 +28,10 @@ const (
 	SET statsItemType = 0
 	INC                = 1
 )
+
+type getRequest struct {
+	resultChan chan map[timeamount.TimeAmount]*StatsSave
+}
 
 type statsItem struct {
 	Key string
@@ -80,6 +85,14 @@ func (this *Stats) Inc(key string, val int) {
 	}
 }
 
+func (this *Stats) Get() map[timeamount.TimeAmount]*StatsSave {
+	greq := getRequest{
+		resultChan : make(chan map[timeamount.TimeAmount]*StatsSave),
+	}
+	this.getChan <- greq
+	return <- greq.resultChan
+}
+
 //starts the event loop.
 //this is necessary for it to do anything!
 func (this *Stats) Start() {
@@ -97,10 +110,26 @@ func (this *Stats) eventLoop() {
 		select {
 		case item := <- this.itemChan:
 			this.add(item)
+		case greq := <- this.getChan:
+			greq.resultChan <- this.get()
+
 		}
 	}
 }
 
+// Gets a clone of the current state
+func (this *Stats) get() map[timeamount.TimeAmount]*StatsSave{
+	mp := make(map[timeamount.TimeAmount]*StatsSave)
+	for ta,ss := range(this.items) {
+		res := &StatsSave{
+			Values : ss.Values.Clone(),
+			TimeAmount: ss.TimeAmount,
+			Epoch : ss.Epoch,
+		}
+		mp[ta] = res
+	}
+	return mp
+}
 
 func (this *Stats) add(item statsItem) {
 	for ta, sts := range(this.items) {
