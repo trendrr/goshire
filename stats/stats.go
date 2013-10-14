@@ -51,7 +51,8 @@ type StatsSave struct {
 // NewStats("1 minute", "30 minute", "1 day")
 func New(timeamounts ...string) (*Stats, error) {
 	s := &Stats{
-		itemChan : make(chan statsItem, 500),
+		itemChan : make(chan statsItem, 5),
+		getChan : make(chan getRequest, 10),
 		items : make(map[timeamount.TimeAmount]*StatsSave),
 	}
 	for _,ta := range(timeamounts) {
@@ -83,6 +84,7 @@ func (this *Stats) Inc(key string, val int) {
 	default :
 		log.Printf( "Could not Inc Key: %s Val: %d", key, val)
 	}
+
 }
 
 func (this *Stats) Get() map[timeamount.TimeAmount]*StatsSave {
@@ -148,7 +150,7 @@ func (this *Stats) add(item statsItem) {
 		
 		if item.typ == INC {
 			val := sts.Values.MustInt64(item.Key, int64(0))
-			sts.Values.PutWithDot(item.Key, int64(val+item.Val))	
+			sts.Values.PutWithDot(item.Key, int64(val+item.Val))
 		} else if item.typ == SET {
 			sts.Values.PutWithDot(item.Key, int64(item.Val))
 		}
